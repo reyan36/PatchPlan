@@ -1,0 +1,8 @@
+Github integration 
+Discord integration 
+Cache Implementation 
+Loading Timing better
+Make load on firebase server low using algorithims and techiniques
+Copyright year auto update each year?
+Mailing list integration 
+Backup

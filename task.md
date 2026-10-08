@@ -1,0 +1,6 @@
+- `[x]` Fix Skeleton loading in `IdeaEditor.tsx`
+- `[x]` Replace `window.confirm` with custom Delete Modals (`IdeaBoard` & `IdeaEditor`)
+- `[x]` Complete Settings tabs (Appearance, Notifications, Security)
+- `[x]` Implement Account Deletion in Security tab
+- `[x]` Create `/marketing` route and Influencer CRM UI
+- `[x]` Update `Navbar` to include Marketing link
