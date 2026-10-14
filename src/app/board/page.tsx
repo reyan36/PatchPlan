@@ -213,7 +213,7 @@ export default function BoardPage() {
       try {
         await updateDoc(doc(db, "tasks", id), { column: targetColumn });
         if (targetColumn === "Done" && !wasDone) {
-          notifyTaskCompleted(activeFamily ? activeFamily.id : user.uid, task.title, userProfile?.displayName || user?.displayName || "Someone");
+          notifyTaskCompleted(activeFamily ? activeFamily.id : user.uid, task.title, user?.displayName || user?.email?.split('@')[0] || "Someone");
         }
       } catch (err) {
         console.error("Failed to move task", err);

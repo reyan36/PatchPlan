@@ -47,16 +47,24 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
           familyId = configSnap.docs[0].id;
         }
 
-        const configDoc = await getDoc(doc(db, "roadmap_configs", familyId));
+        // Fetch configs, family, user profile, and roadmap items concurrently in parallel
+        const [configDoc, pubConfigDoc, familyDoc, userDoc, famSnap, userSnap] = await Promise.all([
+          getDoc(doc(db, "roadmap_configs", familyId)),
+          getDoc(doc(db, "public_configs", familyId)),
+          getDoc(doc(db, "families", familyId)),
+          getDoc(doc(db, "user_profiles", familyId)),
+          getDocs(query(collection(db, "roadmap"), where("familyId", "==", familyId))),
+          getDocs(query(collection(db, "roadmap"), where("userId", "==", familyId)))
+        ]);
+
         if (configDoc.exists()) {
           setColumns(configDoc.data().columns || []);
         }
 
         let fetchedFamilyName = "Studio";
-        const pubConfigDoc = await getDoc(doc(db, "public_configs", familyId));
         if (pubConfigDoc.exists()) {
           const d = pubConfigDoc.data();
-          if (d.roadmapExpiresAt !== undefined && d.roadmapExpiresAt !== -1 && Date.now() > d.roadmapExpiresAt) {
+          if (d.roadmapExpiresAt !== undefined && d.roadmapExpiresAt !== -1 && d.roadmapExpiresAt > 0 && Date.now() > d.roadmapExpiresAt) {
             setLoading(false);
             setItems([]);
             setFamilyName("Expired");
@@ -76,27 +84,17 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
         }
 
         if (fetchedFamilyName === "Studio") {
-          const familyDoc = await getDoc(doc(db, "families", familyId));
-          if (familyDoc.exists()) {
+          if (familyDoc.exists() && familyDoc.data().name) {
             fetchedFamilyName = familyDoc.data().name;
-          } else {
-            const userDoc = await getDoc(doc(db, "user_profiles", familyId));
-            if (userDoc.exists()) fetchedFamilyName = "Developer";
+          } else if (userDoc.exists()) {
+            fetchedFamilyName = userDoc.data().displayName || userDoc.data().name || "Studio";
           }
         }
         
         setFamilyName(fetchedFamilyName);
 
-        const qFam = query(collection(db, "roadmap"), where("familyId", "==", familyId));
-        const famSnap = await getDocs(qFam);
-        let fetchedItems: RoadmapItem[] = [];
-        if (!famSnap.empty) {
-          fetchedItems = famSnap.docs.map(d => ({ id: d.id, ...d.data() })) as RoadmapItem[];
-        } else {
-          const qUser = query(collection(db, "roadmap"), where("userId", "==", familyId));
-          const userSnap = await getDocs(qUser);
-          fetchedItems = userSnap.docs.map(d => ({ id: d.id, ...d.data() })) as RoadmapItem[];
-        }
+        const snap = !famSnap.empty ? famSnap : userSnap;
+        const fetchedItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as RoadmapItem[];
         setItems(fetchedItems);
       } catch (err) {
         console.error(err);
@@ -229,7 +227,7 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
             <a href={config.discordUrl.startsWith('http') ? config.discordUrl : `https://${config.discordUrl}`} target="_blank" rel="noreferrer" className="hover:underline transition-colors">Discord</a>
           )}
         </div>
-        <div>&copy; {new Date().getFullYear()} {familyName}. Powered by PatchPlan.</div>
+        <div suppressHydrationWarning>&copy; {new Date().getFullYear()} {familyName}. Powered by PatchPlan.</div>
       </footer>
     </div>
   );

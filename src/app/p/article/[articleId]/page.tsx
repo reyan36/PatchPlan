@@ -39,7 +39,7 @@ export default function PublicArticlePage({ params }: { params: { articleId: str
           if (configDoc.exists()) {
             const cData = configDoc.data();
             setConfig(cData);
-            if (cData.newsExpiresAt && Date.now() > cData.newsExpiresAt) {
+            if (cData.newsExpiresAt !== undefined && cData.newsExpiresAt !== -1 && cData.newsExpiresAt > 0 && Date.now() > cData.newsExpiresAt) {
               setArticle({ expired: true } as any);
               setLoading(false);
               return;
@@ -213,6 +213,12 @@ export default function PublicArticlePage({ params }: { params: { articleId: str
           )}
         </div>
       </main>
+
+      <footer className="border-t border-current border-opacity-10 py-10 px-6 shrink-0 text-center text-xs opacity-60">
+        <div suppressHydrationWarning>
+          &copy; {new Date().getFullYear()} {config.newsStudioName || article.authorName || 'Studio'}. Powered by PatchPlan.
+        </div>
+      </footer>
     </div>
   );
 }

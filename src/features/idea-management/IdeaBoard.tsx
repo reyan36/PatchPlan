@@ -43,7 +43,7 @@ export function IdeaBoard() {
       }
       
       // Sort by upvotes count
-      ideasData.sort((a, b) => {
+      ideasData.sort((a: any, b: any) => {
         const aVotes = a.upvotedBy?.length || 0;
         const bVotes = b.upvotedBy?.length || 0;
         return bVotes - aVotes;

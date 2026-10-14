@@ -3,6 +3,10 @@ import { collection, query, where, getDocs, doc, getDoc } from "firebase/firesto
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { Metadata } from 'next';
+import { cache } from 'react';
+
+// Next.js ISR: Cache rendered news page at edge/server for 60 seconds
+export const revalidate = 60;
 
 type Article = {
   id: string;
@@ -22,21 +26,7 @@ type ConfigData = {
   template: string;
 }
 
-export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
-  let title = "Studio News";
-  try {
-    const familyDoc = await getDoc(doc(db, "families", params.familyId));
-    if (familyDoc.exists()) {
-      title = `${familyDoc.data().name} News`;
-    } else {
-      const userDoc = await getDoc(doc(db, "user_profiles", params.familyId));
-      if (userDoc.exists()) title = "Developer News";
-    }
-  } catch(e) {}
-  return { title };
-}
-
-async function getNewsData(slug: string) {
+const getNewsData = cache(async (slug: string) => {
   let familyId = slug;
   try {
     const configQuery = query(collection(db, 'public_configs'), where('newsSlug', '==', slug));
@@ -50,7 +40,15 @@ async function getNewsData(slug: string) {
   let config: ConfigData = { layout: "grid", websiteUrl: "", discordUrl: "", newsHeading: "", theme: "dark", logoUrl: "", template: "standard" };
 
   try {
-    const configDoc = await getDoc(doc(db, "public_configs", familyId));
+    // Run config, family, user profile, and article queries in parallel for high speed
+    const [configDoc, familyDoc, userDoc, snapFam, snapUser] = await Promise.all([
+      getDoc(doc(db, "public_configs", familyId)),
+      getDoc(doc(db, "families", familyId)),
+      getDoc(doc(db, "user_profiles", familyId)),
+      getDocs(query(collection(db, "articles"), where("familyId", "==", familyId), where("status", "==", "published"))),
+      getDocs(query(collection(db, "articles"), where("userId", "==", familyId), where("status", "==", "published")))
+    ]);
+
     if (configDoc.exists()) {
       const d = configDoc.data();
       if (d.newsLayout) config.layout = d.newsLayout;
@@ -63,30 +61,20 @@ async function getNewsData(slug: string) {
       if (d.newsStudioName) familyName = d.newsStudioName;
       
       const expiresAt = d.newsExpiresAt;
-      if (expiresAt !== undefined && expiresAt !== -1 && Date.now() > expiresAt) {
+      if (expiresAt !== undefined && expiresAt !== -1 && expiresAt > 0 && Date.now() > expiresAt) {
         return { familyName: "Expired", articles: [], config };
       }
     }
 
     if (familyName === "Studio") {
-      const familyDoc = await getDoc(doc(db, "families", familyId));
-      if (familyDoc.exists()) {
+      if (familyDoc.exists() && familyDoc.data().name) {
         familyName = familyDoc.data().name;
-      } else {
-        const userDoc = await getDoc(doc(db, "user_profiles", familyId));
-        if (userDoc.exists()) familyName = "Developer";
+      } else if (userDoc.exists()) {
+        familyName = userDoc.data().displayName || userDoc.data().name || "Studio";
       }
     }
 
-
-    let q = query(collection(db, "articles"), where("familyId", "==", familyId), where("status", "==", "published"));
-    let snap = await getDocs(q);
-    
-    if (snap.empty) {
-      q = query(collection(db, "articles"), where("userId", "==", familyId), where("status", "==", "published"));
-      snap = await getDocs(q);
-    }
-    
+    const snap = !snapFam.empty ? snapFam : snapUser;
     articles = snap.docs.map(d => ({
       id: d.id,
       title: d.data().title,
@@ -100,6 +88,12 @@ async function getNewsData(slug: string) {
   }
 
   return { familyName, articles, config };
+});
+
+export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
+  const { familyName, config } = await getNewsData(params.familyId);
+  const title = config.newsHeading || `${familyName} News`;
+  return { title };
 }
 
 export default async function PublicNewsPage({ params, searchParams }: { params: { familyId: string }, searchParams?: { q?: string } }) {
@@ -301,7 +295,7 @@ export default async function PublicNewsPage({ params, searchParams }: { params:
             <a href={config.discordUrl.startsWith('http') ? config.discordUrl : `https://${config.discordUrl}`} target="_blank" rel="noreferrer" className="hover:underline transition-colors">Discord</a>
           )}
         </div>
-        <div className="text-xs">&copy; {new Date().getFullYear()} {familyName}. Powered by PatchPlan.</div>
+        <div className="text-xs" suppressHydrationWarning>&copy; {new Date().getFullYear()} {familyName}. Powered by PatchPlan.</div>
       </footer>
     </div>
   );
