@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { ArrowLeft, Share2, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, ShareNetwork, Check, ArrowSquareOut } from "@phosphor-icons/react";
 
 type ArticleData = {
   id: string;
@@ -162,7 +162,7 @@ export default function PublicArticlePage({ params }: { params: { articleId: str
             onClick={handleShare}
             className={`px-4 py-2 rounded-full border transition-colors font-medium text-sm flex items-center gap-2 ${config.theme === 'minimal' ? 'border-gray-300 hover:bg-gray-100 text-black' : 'border-white/20 hover:bg-white/10 text-white'}`}
           >
-            {copied ? <Check className="w-4 h-4 text-green-500" /> : <Share2 className="w-4 h-4" />}
+            {copied ? <Check className="w-4 h-4 text-green-500" weight="bold" /> : <ShareNetwork className="w-4 h-4" weight="duotone" />}
             {copied ? 'Copied' : 'Share'}
           </button>
         </div>
@@ -208,7 +208,7 @@ export default function PublicArticlePage({ params }: { params: { articleId: str
               rel="noreferrer"
               className="hover:underline transition-colors font-medium flex items-center gap-2"
             >
-              {article.socialLabel || "Author Link"} <ExternalLink className="w-4 h-4" />
+              {article.socialLabel || "Author Link"} <ArrowSquareOut className="w-4 h-4" />
             </a>
           )}
         </div>

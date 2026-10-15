@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { X } from "@phosphor-icons/react";
 
 type ModalProps = {
   isOpen: boolean;
@@ -35,7 +35,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground transition-colors p-1"
           >
-            <X className="w-5 h-5" />
+            <X size={18} weight="bold" />
           </button>
         </div>
         <div className="p-6 max-h-[75vh] overflow-y-auto custom-scrollbar">

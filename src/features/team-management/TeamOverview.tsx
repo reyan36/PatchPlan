@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Users } from "@phosphor-icons/react";
 import { collection, onSnapshot, addDoc, updateDoc, doc, serverTimestamp, increment, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
@@ -23,6 +23,8 @@ export function TeamOverview() {
         ...doc.data()
       }));
       setTeams(teamsData);
+    }, (error) => {
+      console.warn("Teams listener error:", error.message);
     });
     
     return () => unsubscribe();
@@ -54,13 +56,18 @@ export function TeamOverview() {
     <>
       <div className="border border-border rounded-lg p-6 bg-card h-full">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Teams</h2>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500">
+              <Users size={20} weight="duotone" />
+            </div>
+            <h2 className="text-xl font-semibold">Teams</h2>
+          </div>
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="p-1.5 hover:bg-muted rounded-md transition-colors"
+            className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
             title="Add new team"
           >
-            <Plus className="w-4 h-4" />
+            <Plus size={16} weight="bold" />
           </button>
         </div>
         <div className="space-y-4">

@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { MessageSquare, Save, CheckCircle } from "lucide-react";
+import { DiscordLogo, FloppyDisk, CheckCircle } from "@phosphor-icons/react";
 
 export function IntegrationsTab() {
   const { user } = useAuth();
@@ -77,7 +77,7 @@ export function IntegrationsTab() {
     <section className="bg-card border border-border rounded-lg p-6 animate-in fade-in duration-300">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-10 h-10 rounded-full bg-[#5865F2]/10 flex items-center justify-center text-[#5865F2]">
-          <MessageSquare className="w-5 h-5" />
+          <DiscordLogo size={24} weight="duotone" />
         </div>
         <div>
           <h2 className="text-lg font-semibold text-foreground">Discord Integration</h2>
@@ -108,7 +108,7 @@ export function IntegrationsTab() {
             disabled={saving}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 flex items-center gap-2"
           >
-            {saved ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saved ? <CheckCircle size={16} weight="fill" className="text-emerald-400" /> : <FloppyDisk size={16} weight="duotone" />}
             {saving ? "Saving..." : saved ? "Saved!" : "Save Webhook"}
           </button>
 

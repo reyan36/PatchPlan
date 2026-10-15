@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { Share2, Plus, Trash2, Globe, Settings2 } from "lucide-react";
+import { Compass, Plus, Trash, ShareNetwork, SlidersHorizontal, GearSix } from "@phosphor-icons/react";
 import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
 import { ShareModal } from "@/components/ui/ShareModal";
@@ -62,6 +62,9 @@ export default function RoadmapPage() {
         setColumns(defaultCols);
       }
       setConfigLoaded(true);
+    }, (err) => {
+      console.warn("Roadmap config listener:", err.message);
+      setConfigLoaded(true);
     });
 
     const q = activeFamily
@@ -74,6 +77,9 @@ export default function RoadmapPage() {
         data = data.filter((i: any) => !i.familyId); 
       }
       setItems(data);
+      setLoading(false);
+    }, (err) => {
+      console.warn("Roadmap items listener:", err.message);
       setLoading(false);
     });
     
@@ -174,24 +180,31 @@ export default function RoadmapPage() {
       <header className="px-8 py-6 border-b border-border/10 flex items-center justify-between shrink-0 bg-[#151515]">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3 tracking-tight">
-            <Globe className="text-red-500 w-8 h-8" />
+            <Compass size={32} weight="duotone" className="text-red-500" />
             Roadmap
           </h1>
           <p className="text-sm text-gray-400 mt-1">Cards are arranged by milestone status. Share to let players see your progress.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => setIsManagingColumns(!isManagingColumns)}
             className="flex items-center gap-2 px-4 py-2 bg-muted/30 hover:bg-muted/50 border border-border/20 rounded-md text-sm font-medium transition-colors"
           >
-            <Settings2 className="w-4 h-4" />
+            <SlidersHorizontal size={16} weight="duotone" />
             Columns
           </button>
-          <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 border border-border rounded-md text-sm font-medium transition-colors whitespace-nowrap">Settings</button>
-            <button onClick={() => setIsSharing(true)}
+          <button 
+            onClick={() => setIsSettingsOpen(true)} 
+            className="flex items-center gap-2 px-4 py-2 bg-muted/30 hover:bg-muted/50 border border-border/20 rounded-md text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            <GearSix size={16} weight="duotone" />
+            Settings
+          </button>
+          <button 
+            onClick={() => setIsSharing(true)}
             className="flex items-center gap-2 px-4 py-2 bg-muted/30 hover:bg-muted/50 border border-border/20 rounded-md text-sm font-medium transition-colors"
           >
-            <Share2 className="w-4 h-4" />
+            <ShareNetwork size={16} weight="duotone" />
             Share Public Link
           </button>
           <button 
@@ -199,9 +212,9 @@ export default function RoadmapPage() {
               setNewItemColumn(columns[0] || "");
               setIsAddingItem(true);
             }}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md text-sm font-medium transition-colors shadow-sm"
           >
-            <Plus className="w-4 h-4" />
+            <Plus size={16} weight="bold" />
             Add Milestone
           </button>
         </div>
@@ -246,7 +259,7 @@ export default function RoadmapPage() {
                           onClick={(e) => { e.stopPropagation(); deleteItem(item.id); }}
                           className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition-opacity"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash className="w-3.5 h-3.5" weight="duotone" />
                         </button>
                       </div>
                       <div className="flex justify-between items-center mb-3">
@@ -387,7 +400,7 @@ export default function RoadmapPage() {
               <li key={col} className="flex items-center justify-between bg-card border border-border p-3 rounded-md">
                 <span className="font-medium text-gray-200">{col}</span>
                 <button onClick={() => deleteColumn(col)} className="text-gray-500 hover:text-red-500 p-1">
-                  <Trash2 className="w-4 h-4" />
+                  <Trash className="w-4 h-4" weight="duotone" />
                 </button>
               </li>
             ))}

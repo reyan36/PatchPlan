@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, Trash2, Filter } from "lucide-react";
+import { MagnifyingGlass, Plus, Trash, Funnel } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { Login } from "@/components/auth/Login";
 
@@ -67,7 +67,7 @@ export default function MarketingPage() {
         <div className="flex flex-1 gap-4 w-full sm:w-auto">
           {/* Text Search */}
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <MagnifyingGlass size={16} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
               placeholder="Search contacts..." 
@@ -79,7 +79,7 @@ export default function MarketingPage() {
           
           {/* Role Filter */}
           <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Funnel size={16} weight="duotone" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <select 
               value={roleFilter}
               onChange={e => setRoleFilter(e.target.value)}
@@ -95,7 +95,7 @@ export default function MarketingPage() {
           onClick={addContact}
           className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity whitespace-nowrap"
         >
-          <Plus className="w-4 h-4" /> Add Contact
+          <Plus size={16} weight="bold" /> Add Contact
         </button>
       </div>
 
@@ -166,7 +166,7 @@ export default function MarketingPage() {
                       className="p-1.5 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 mx-auto block"
                       title="Delete Contact"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash size={16} weight="duotone" />
                     </button>
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react";
 import { collection, onSnapshot, addDoc, serverTimestamp, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
@@ -55,7 +55,7 @@ export function ProjectList() {
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity"
           >
-            <Plus className="w-4 h-4" /> New Project
+            <Plus className="w-4 h-4" weight="bold" /> New Project
           </button>
         </div>
         <div className="space-y-4">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, ArrowRight, Trash2, Heart } from "lucide-react";
+import { Plus, ArrowRight, Trash, Heart, Lightbulb } from "@phosphor-icons/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, arrayUnion, arrayRemove, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { notifyNewIdea } from "@/lib/discord";
@@ -50,6 +50,9 @@ export function IdeaBoard() {
       });
       
       setIdeas(ideasData.slice(0, 5));
+      setLoading(false);
+    }, (error) => {
+      console.warn("IdeaBoard listener error:", error.message);
       setLoading(false);
     });
     
@@ -103,16 +106,21 @@ export function IdeaBoard() {
     <>
       <div className="border border-border rounded-lg p-6 bg-card">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Idea Board</h2>
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
+              <Lightbulb size={20} weight="duotone" />
+            </div>
+            <h2 className="text-xl font-semibold">Idea Board</h2>
+          </div>
           <div className="flex items-center gap-3">
-            <Link href="/ideas" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors">
-              View All <ArrowRight className="w-4 h-4" />
+            <Link href="/ideas" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors">
+              View All <ArrowRight size={14} weight="bold" />
             </Link>
             <button 
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-1 text-sm bg-muted hover:bg-border transition-colors px-3 py-1.5 rounded-md"
+              className="flex items-center gap-1.5 text-sm bg-muted hover:bg-border transition-colors px-3 py-1.5 rounded-md font-medium"
             >
-              <Plus className="w-4 h-4" /> Add Idea
+              <Plus size={16} weight="bold" /> Add Idea
             </button>
           </div>
         </div>
@@ -140,14 +148,14 @@ export function IdeaBoard() {
                     }`}
                     title={hasVoted ? "Remove vote" : "Upvote"}
                   >
-                    <Heart className={`w-4 h-4 ${hasVoted ? "fill-current" : ""}`} />
+                    <Heart size={16} weight={hasVoted ? "fill" : "regular"} className={hasVoted ? "text-red-500" : ""} />
                   </button>
                   <button
                     onClick={(e) => handleDeleteClick(e, idea.id)}
                     className="p-1.5 rounded-md text-muted-foreground hover:bg-red-500/20 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                     title="Delete Idea"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash size={16} weight="duotone" />
                   </button>
                 </div>
               </div>

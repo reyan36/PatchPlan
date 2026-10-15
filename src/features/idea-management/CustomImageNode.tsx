@@ -2,7 +2,7 @@
 
 import Image from "@tiptap/extension-image";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
-import { Trash2 } from "lucide-react";
+import { Trash } from "@phosphor-icons/react";
 
 const ImageComponent = ({ node, deleteNode }: any) => {
   return (
@@ -17,7 +17,7 @@ const ImageComponent = ({ node, deleteNode }: any) => {
         className="absolute top-2 right-2 bg-red-500/90 text-white p-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 shadow-md"
         title="Delete Image"
       >
-        <Trash2 className="w-4 h-4" />
+        <Trash className="w-4 h-4" weight="duotone" />
       </button>
     </NodeViewWrapper>
   );

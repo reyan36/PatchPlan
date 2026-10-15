@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { db } from "@/lib/firebase";
 import { notifyNewsPublished } from "@/lib/discord";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { ArrowLeft, Save, Globe, ImageIcon } from "lucide-react";
+import { ArrowLeft, FloppyDisk, Globe, Image as ImageIcon } from "@phosphor-icons/react";
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -117,7 +117,7 @@ export default function ArticleEditor({ params }: { params: { articleId: string 
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
-            <Save className="w-4 h-4" />
+            <FloppyDisk className="w-4 h-4" weight="duotone" />
             {saving ? "Saving..." : "Save Article"}
           </button>
         </div>

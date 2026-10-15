@@ -2,7 +2,7 @@
 
 import { IdeaBoard } from "@/features/idea-management/IdeaBoard";
 import { TeamOverview } from "@/features/team-management/TeamOverview";
-import { Sparkles } from "lucide-react";
+import { Sparkle } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { Login } from "@/components/auth/Login";
 
@@ -51,11 +51,11 @@ export default function Home() {
       {/* Placeholder for AI feature per hackathon requirements */}
       <section className="bg-card border border-border rounded-lg p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Sparkles className="w-24 h-24" />
+          <Sparkle size={96} weight="duotone" />
         </div>
         <div className="relative z-10 max-w-2xl">
           <div className="flex items-center gap-2 mb-3 text-primary">
-            <Sparkles className="w-5 h-5" />
+            <Sparkle size={20} weight="duotone" />
             <h2 className="text-lg font-semibold">Studio AI Assistant</h2>
           </div>
           <p className="text-sm text-muted-foreground mb-4">

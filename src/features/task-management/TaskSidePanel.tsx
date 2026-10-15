@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, AlignLeft, User, LayoutGrid, CheckSquare, Tag as TagIcon, Calendar, Clock } from "lucide-react";
+import { X, TextAlignLeft, UserCircle, SquaresFour, CheckSquare, Tag, CalendarBlank, Clock } from "@phosphor-icons/react";
 
 function formatTimeAgo(date: Date) {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -106,11 +106,11 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <CheckSquare className="w-4 h-4" />
+            <CheckSquare className="w-4 h-4 text-primary" weight="duotone" />
             <span>Task Details</span>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-muted rounded-md transition-colors text-muted-foreground">
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" weight="bold" />
           </button>
         </div>
 
@@ -134,7 +134,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
             {/* Status / Column */}
             <div className="flex items-center gap-4">
               <div className="w-24 text-sm text-muted-foreground flex items-center gap-2">
-                <LayoutGrid className="w-4 h-4" /> Status
+                <SquaresFour className="w-4 h-4" weight="duotone" /> Status
               </div>
               <select
                 value={task.column}
@@ -149,7 +149,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
             {activeFamily && (
               <div className="flex items-center gap-4">
                 <div className="w-24 text-sm text-muted-foreground flex items-center gap-2">
-                  <User className="w-4 h-4" /> Assignee
+                  <UserCircle className="w-4 h-4" weight="duotone" /> Assignee
                 </div>
                 <select
                   value={task.assigneeId || ""}
@@ -167,7 +167,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
             {/* Tags / Category */}
             <div className="flex items-center gap-4">
               <div className="w-24 text-sm text-muted-foreground flex items-center gap-2">
-                <TagIcon className="w-4 h-4" /> Category
+                <Tag className="w-4 h-4" weight="duotone" /> Category
               </div>
               <select
                 value={task.tags?.[0] || ""}
@@ -180,7 +180,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
             </div>            {/* Due Date */}
             <div className="flex items-center gap-4">
               <div className="w-24 text-sm text-muted-foreground flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> Due Date
+                <CalendarBlank className="w-4 h-4" weight="duotone" /> Due Date
               </div>
               <input
                 type="date"
@@ -194,7 +194,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
           
           {createdDate && (
              <div className="flex items-center gap-2 text-xs text-muted-foreground -mt-2">
-                <Clock className="w-3.5 h-3.5" />
+                <Clock className="w-3.5 h-3.5" weight="duotone" />
                 <span>Created {createdDate.toLocaleDateString()} at {createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({formatTimeAgo(createdDate)})</span>
              </div>
           )}
@@ -204,7 +204,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
           {/* Rich Description */}
           <div>
             <div className="flex items-center gap-2 text-muted-foreground font-medium mb-3">
-              <AlignLeft className="w-5 h-5" />
+              <TextAlignLeft className="w-5 h-5 text-primary" weight="duotone" />
               <h3>Description</h3>
             </div>
             

@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, addDoc, doc, deleteDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { Newspaper, Plus, Trash2, Globe, ArrowRight, Share2 } from "lucide-react";
+import { Newspaper, Plus, Trash, ArrowRight, ShareNetwork, SlidersHorizontal } from "@phosphor-icons/react";
 import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
 import { NewsSettingsModal } from "@/components/ui/NewsSettingsModal";
@@ -52,6 +52,8 @@ export default function NewsPage() {
         if (d.websiteUrl) setWebsiteUrl(d.websiteUrl);
         if (d.discordUrl) setDiscordUrl(d.discordUrl);
       }
+    }, (err) => {
+      console.warn("News config listener:", err.message);
     });
 
     const q = activeFamily
@@ -64,6 +66,9 @@ export default function NewsPage() {
         data = data.filter((i: any) => !i.familyId);
       }
       setArticles(data.sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis()));
+      setLoading(false);
+    }, (err) => {
+      console.warn("News articles listener:", err.message);
       setLoading(false);
     });
     return () => {
@@ -124,12 +129,12 @@ export default function NewsPage() {
       <header className="flex items-center justify-between border-b border-border pb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <Newspaper className="text-primary" /> 
+            <Newspaper size={28} weight="duotone" className="text-primary" /> 
             Studio News
           </h1>
           <p className="text-muted-foreground mt-1">Write devlogs, patch notes, and announcements to share with your community.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <select 
             value={layoutSetting}
             onChange={(e) => handleLayoutChange(e.target.value)}
@@ -139,17 +144,25 @@ export default function NewsPage() {
             <option value="list">Layout: List View</option>
             <option value="featured">Layout: Featured Article</option>
           </select>
-          <button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 border border-border rounded-md text-sm font-medium transition-colors whitespace-nowrap">Settings</button><button onClick={() => setIsSharing(true)}
+          <button 
+            onClick={() => setIsSettingsOpen(true)} 
             className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 border border-border rounded-md text-sm font-medium transition-colors whitespace-nowrap"
           >
-            <Share2 className="w-4 h-4" />
+            <SlidersHorizontal size={16} weight="duotone" />
+            Settings
+          </button>
+          <button 
+            onClick={() => setIsSharing(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 border border-border rounded-md text-sm font-medium transition-colors whitespace-nowrap"
+          >
+            <ShareNetwork size={16} weight="duotone" />
             Share Press Page
           </button>
           <button 
             onClick={() => setIsAdding(true)}
             className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 transition-colors whitespace-nowrap"
           >
-            <Plus className="w-4 h-4" />
+            <Plus size={16} weight="bold" />
             Write Article
           </button>
         </div>
@@ -171,13 +184,13 @@ export default function NewsPage() {
                   onClick={(e) => deleteArticle(e, article.id)}
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash size={16} weight="duotone" />
                 </button>
               </div>
               <h2 className="text-xl font-bold mb-2 line-clamp-2">{article.title}</h2>
               <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{article.excerpt}</p>
               <div className="mt-auto text-sm text-primary flex items-center gap-1 font-medium group-hover:translate-x-1 transition-transform">
-                Edit Article <ArrowRight className="w-4 h-4" />
+                Edit Article <ArrowRight size={16} weight="bold" />
               </div>
             </div>
           </div>
@@ -185,7 +198,7 @@ export default function NewsPage() {
 
         {articles.length === 0 && (
           <div className="col-span-full py-12 text-center border border-dashed border-border rounded-xl">
-            <Newspaper className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+            <Newspaper size={48} weight="duotone" className="text-muted-foreground mx-auto mb-4 opacity-50" />
             <h3 className="text-lg font-medium">No articles written yet</h3>
             <p className="text-muted-foreground mt-1">Start writing devlogs and announcements.</p>
           </div>

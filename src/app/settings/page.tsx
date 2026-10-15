@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { Login } from "@/components/auth/Login";
 import { IntegrationsTab } from "@/features/integrations/IntegrationsTab";
-import { User, Bell, Shield, Webhook, Paintbrush } from "lucide-react";
+import { UserCircle, Palette, BellSimple, ShieldCheck, PlugsConnected } from "@phosphor-icons/react";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { updateProfile, deleteUser } from "firebase/auth";
 import { Modal } from "@/components/ui/Modal";
@@ -95,43 +95,43 @@ export default function SettingsPage() {
         <div className="md:col-span-1 flex flex-col gap-1">
           <button 
             onClick={() => setActiveTab("profile")}
-            className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === "profile" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "profile" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
-            <User className="w-4 h-4" /> Profile
+            <UserCircle size={18} weight={activeTab === "profile" ? "duotone" : "regular"} /> Profile
           </button>
           <button 
             onClick={() => setActiveTab("appearance")}
-            className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === "appearance" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "appearance" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
-            <Paintbrush className="w-4 h-4" /> Appearance
+            <Palette size={18} weight={activeTab === "appearance" ? "duotone" : "regular"} /> Appearance
           </button>
           <button 
             onClick={() => setActiveTab("notifications")}
-            className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === "notifications" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "notifications" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
-            <Bell className="w-4 h-4" /> Notifications
+            <BellSimple size={18} weight={activeTab === "notifications" ? "duotone" : "regular"} /> Notifications
           </button>
           <button 
             onClick={() => setActiveTab("security")}
-            className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === "security" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "security" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
-            <Shield className="w-4 h-4" /> Security
+            <ShieldCheck size={18} weight={activeTab === "security" ? "duotone" : "regular"} /> Security
           </button>
           <button 
             onClick={() => setActiveTab("integrations")}
-            className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-              activeTab === "integrations" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted/50"
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
+              activeTab === "integrations" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
             }`}
           >
-            <Webhook className="w-4 h-4" /> Integrations
+            <PlugsConnected size={18} weight={activeTab === "integrations" ? "duotone" : "regular"} /> Integrations
           </button>
         </div>
 

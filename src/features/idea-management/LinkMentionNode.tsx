@@ -3,7 +3,7 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 import { useEffect, useState } from "react";
-import { Link2 } from "lucide-react";
+import { LinkSimple } from "@phosphor-icons/react";
 
 const MentionComponent = ({ node, updateAttributes }: any) => {
   const { href, title, icon, domain } = node.attrs;
@@ -70,7 +70,7 @@ const MentionComponent = ({ node, updateAttributes }: any) => {
             }} 
           />
         ) : (
-          <Link2 style={{ width: '14px', height: '14px', opacity: 0.7 }} className="group-hover:text-primary transition-colors" />
+          <LinkSimple style={{ width: '14px', height: '14px', opacity: 0.7 }} className="group-hover:text-primary transition-colors" weight="bold" />
         )}
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '250px' }}>
           {loading ? "Fetching preview..." : title || href}

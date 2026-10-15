@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Member, Family } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove, getDocs, getDoc, query, where } from "firebase/firestore";
-import { Building2, UserPlus, LogIn, Plus, LogOut } from "lucide-react";
+import { Buildings, UserPlus, SignIn, Plus, SignOut } from "@phosphor-icons/react";
 import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
 
@@ -185,7 +185,7 @@ export default function TeamsPage() {
     return (
       <div className="max-w-2xl mx-auto mt-12 text-center space-y-8 animate-in fade-in zoom-in-95">
         <div>
-          <Building2 className="w-16 h-16 mx-auto text-primary mb-4" />
+          <Buildings size={56} weight="duotone" className="mx-auto text-primary mb-4" />
           <h1 className="text-4xl font-bold tracking-tight mb-2">Workspace Hub</h1>
           <p className="text-xl text-muted-foreground">You are currently operating in your <strong>Personal Workspace</strong>.<br/>Select a family to collaborate with a team, or create a new one.</p>
         </div>
@@ -215,27 +215,33 @@ export default function TeamsPage() {
         )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <button 
+          <div 
+            role="button"
+            tabIndex={0}
             onClick={() => setView("create")}
-            className="flex flex-col items-center p-8 bg-card border border-border hover:border-primary rounded-xl transition-all group"
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("create"); }}
+            className="flex flex-col items-center p-8 bg-card border border-border hover:border-primary rounded-xl transition-all group cursor-pointer text-center"
           >
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <Plus className="w-6 h-6 text-primary" />
+              <Plus size={24} weight="bold" className="text-primary" />
             </div>
             <h3 className="text-lg font-semibold">Create a Family</h3>
             <p className="text-sm text-muted-foreground mt-2">Start a new workspace for your studio and invite your team.</p>
-          </button>
+          </div>
 
-          <button 
+          <div 
+            role="button"
+            tabIndex={0}
             onClick={() => setView("join")}
-            className="flex flex-col items-center p-8 bg-card border border-border hover:border-primary rounded-xl transition-all group"
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setView("join"); }}
+            className="flex flex-col items-center p-8 bg-card border border-border hover:border-primary rounded-xl transition-all group cursor-pointer text-center"
           >
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <LogIn className="w-6 h-6 text-primary" />
+              <SignIn size={24} weight="bold" className="text-primary" />
             </div>
             <h3 className="text-lg font-semibold">Join a Family</h3>
             <p className="text-sm text-muted-foreground mt-2">Have an invite code? Join your team's existing workspace.</p>
-          </button>
+          </div>
         </div>
       </div>
     );
@@ -248,7 +254,7 @@ export default function TeamsPage() {
           <header className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-                <Building2 className="text-primary" /> 
+                <Buildings size={32} weight="duotone" className="text-primary" /> 
                 {activeFamily.name}
               </h1>
               <p className="text-muted-foreground">You are currently operating in this Family workspace.</p>
@@ -288,7 +294,7 @@ export default function TeamsPage() {
               onClick={() => setIsLeaveModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors font-medium"
             >
-              <LogOut className="w-4 h-4" /> Permanently Leave Family
+              <SignOut size={16} weight="bold" /> Permanently Leave Family
             </button>
             <button 
               onClick={() => setActiveFamilyId(null)} 

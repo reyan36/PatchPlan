@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { Link2, Globe, Clock, CheckCircle, Trash2 } from "lucide-react";
+import { LinkSimple, Globe, Clock, CheckCircle, Trash } from "@phosphor-icons/react";
 
 type ShareModalProps = {
   isOpen: boolean;
@@ -107,7 +107,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
     <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-6">
         <div className="bg-muted/30 p-4 rounded-lg flex items-center gap-3">
-          <Globe className="text-primary w-5 h-5 shrink-0" />
+          <Globe size={20} weight="duotone" className="text-primary shrink-0" />
           <div className="text-sm font-medium text-foreground truncate select-all">{fullUrl}</div>
         </div>
         
@@ -116,7 +116,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
         ) : hasActive ? (
           <div className="space-y-4">
             <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-md text-sm text-green-500 flex flex-col gap-1">
-              <span className="font-semibold flex items-center gap-2"><CheckCircle className="w-4 h-4"/> Link is currently active</span>
+              <span className="font-semibold flex items-center gap-2"><CheckCircle size={18} weight="fill" /> Link is currently active</span>
               {activeExpiry === -1 || activeExpiry === null ? (
                 <span>It is set to permanent.</span>
               ) : (
@@ -128,7 +128,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
                 onClick={() => { navigator.clipboard.writeText(fullUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
                 className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
               >
-                {copied ? <CheckCircle className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                {copied ? <CheckCircle size={16} weight="fill" /> : <LinkSimple size={16} weight="bold" />}
                 {copied ? "Copied!" : "Copy Link"}
               </button>
               <button 
@@ -136,7 +136,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
                 disabled={loading}
                 className="flex-1 py-2 px-4 bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/20 rounded-md text-sm font-medium flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash size={16} weight="duotone" />
                 Revoke Link
               </button>
             </div>
@@ -155,13 +155,13 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
                 onClick={() => setExpiresIn('7d')}
                 className={`p-3 rounded-md border text-sm font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${expiresIn === '7d' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card hover:bg-muted'}`}
               >
-                <Clock className="w-4 h-4" /> 7 Days
+                <Clock size={16} weight="duotone" /> 7 Days
               </button>
               <button
                 onClick={() => setExpiresIn('24h')}
                 className={`p-3 rounded-md border text-sm font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap ${expiresIn === '24h' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card hover:bg-muted'}`}
               >
-                <Clock className="w-4 h-4" /> 24 Hrs
+                <Clock size={16} weight="duotone" /> 24 Hrs
               </button>
             </div>
             
@@ -177,7 +177,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
                 disabled={loading}
                 className="flex-1 py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:opacity-90 flex items-center justify-center gap-2 transition-colors disabled:opacity-50 whitespace-nowrap"
               >
-                {copied ? <CheckCircle className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                {copied ? <CheckCircle size={16} weight="fill" /> : <LinkSimple size={16} weight="bold" />}
                 {copied ? "Copied!" : "Generate Link"}
               </button>
             </div>

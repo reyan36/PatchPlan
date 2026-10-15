@@ -15,10 +15,10 @@ import "tldraw/tldraw.css";
 import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { 
-  ArrowLeft, Save, Share, Code, CheckSquare, 
-  AlignLeft, AlignCenter, AlignRight, Camera, Trash2,
-  Type, Heading1, Heading2, Heading3, List, ListOrdered, Quote
-} from "lucide-react";
+  ArrowLeft, FloppyDisk, ShareNetwork, Code, CheckSquare, 
+  TextAlignLeft, TextAlignCenter, TextAlignRight, Camera, Trash,
+  TextT, TextHOne, TextHTwo, TextHThree, ListBullets, ListNumbers, Quotes
+} from "@phosphor-icons/react";
 import { useDirty } from "@/lib/DirtyContext";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
@@ -213,20 +213,20 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
             title="Delete Workspace"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash className="w-4 h-4" weight="duotone" />
           </button>
           <button 
             onClick={handleShare}
             className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-muted transition-colors"
           >
-            <Share className="w-4 h-4" /> Share Link
+            <ShareNetwork className="w-4 h-4" weight="duotone" /> Share Link
           </button>
           <button 
             onClick={handleSave}
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground font-medium rounded-md hover:opacity-90 transition-opacity"
           >
-            <Save className="w-4 h-4" /> {saving ? "Saving..." : "Save"}
+            <FloppyDisk className="w-4 h-4" weight="duotone" /> {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -262,7 +262,7 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             onClick={handleInsertSnapshot}
             className="flex items-center gap-2 px-3 py-1 mb-2 text-xs font-medium bg-muted text-foreground rounded hover:bg-border transition-colors"
           >
-            <Camera className="w-3 h-3" /> Insert Snapshot to Doc
+            <Camera className="w-3 h-3" weight="duotone" /> Insert Snapshot to Doc
           </button>
         )}
       </div>
@@ -278,31 +278,31 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             {/* Text Style */}
             <button 
               onClick={() => editor?.chain().focus().setParagraph().run()}
-              className={`p-1.5 rounded ${editor?.isActive("paragraph") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("paragraph") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Normal Text"
             >
-              <Type className="w-3.5 h-3.5" />
+              <TextT className="w-3.5 h-3.5" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}
-              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 1 }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 1 }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Heading 1"
             >
-              <Heading1 className="w-3.5 h-3.5" />
+              <TextHOne className="w-3.5 h-3.5" weight="bold" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
-              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 2 }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 2 }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Heading 2"
             >
-              <Heading2 className="w-3.5 h-3.5" />
+              <TextHTwo className="w-3.5 h-3.5" weight="bold" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
-              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 3 }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("heading", { level: 3 }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Heading 3"
             >
-              <Heading3 className="w-3.5 h-3.5" />
+              <TextHThree className="w-3.5 h-3.5" weight="bold" />
             </button>
             
             <div className="w-px h-4 bg-border mx-1" />
@@ -310,13 +310,13 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             {/* Formatting */}
             <button 
               onClick={() => editor?.chain().focus().toggleBold().run()}
-              className={`px-2 py-1.5 text-xs rounded font-bold ${editor?.isActive("bold") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`px-2 py-1.5 text-xs rounded font-bold ${editor?.isActive("bold") ? "bg-muted text-primary" : "hover:bg-muted"}`}
             >
               B
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleItalic().run()}
-              className={`px-2 py-1.5 text-xs rounded italic ${editor?.isActive("italic") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`px-2 py-1.5 text-xs rounded italic ${editor?.isActive("italic") ? "bg-muted text-primary" : "hover:bg-muted"}`}
             >
               I
             </button>
@@ -326,24 +326,24 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             {/* Alignment */}
             <button 
               onClick={() => editor?.chain().focus().setTextAlign('left').run()}
-              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'left' }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'left' }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Align Left"
             >
-              <AlignLeft className="w-3.5 h-3.5" />
+              <TextAlignLeft className="w-3.5 h-3.5" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().setTextAlign('center').run()}
-              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'center' }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'center' }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Align Center"
             >
-              <AlignCenter className="w-3.5 h-3.5" />
+              <TextAlignCenter className="w-3.5 h-3.5" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().setTextAlign('right').run()}
-              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'right' }) ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive({ textAlign: 'right' }) ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Align Right"
             >
-              <AlignRight className="w-3.5 h-3.5" />
+              <TextAlignRight className="w-3.5 h-3.5" />
             </button>
 
             <div className="w-px h-4 bg-border mx-1" />
@@ -351,38 +351,38 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
             {/* Lists & Blocks */}
             <button 
               onClick={() => editor?.chain().focus().toggleBulletList().run()}
-              className={`p-1.5 rounded ${editor?.isActive("bulletList") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("bulletList") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Bullet List"
             >
-              <List className="w-3.5 h-3.5" />
+              <ListBullets className="w-3.5 h-3.5" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-              className={`p-1.5 rounded ${editor?.isActive("orderedList") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("orderedList") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Ordered List"
             >
-              <ListOrdered className="w-3.5 h-3.5" />
+              <ListNumbers className="w-3.5 h-3.5" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleTaskList().run()}
-              className={`p-1.5 rounded ${editor?.isActive("taskList") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("taskList") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Task List"
             >
-              <CheckSquare className="w-3.5 h-3.5" />
+              <CheckSquare className="w-3.5 h-3.5" weight="duotone" />
             </button>
             
             <div className="w-px h-4 bg-border mx-1" />
             
             <button 
               onClick={() => editor?.chain().focus().toggleBlockquote().run()}
-              className={`p-1.5 rounded ${editor?.isActive("blockquote") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("blockquote") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Blockquote"
             >
-              <Quote className="w-3.5 h-3.5" />
+              <Quotes className="w-3.5 h-3.5" weight="duotone" />
             </button>
             <button 
               onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
-              className={`p-1.5 rounded ${editor?.isActive("codeBlock") ? "bg-muted" : "hover:bg-muted"}`}
+              className={`p-1.5 rounded ${editor?.isActive("codeBlock") ? "bg-muted text-primary" : "hover:bg-muted"}`}
               title="Code Block"
             >
               <Code className="w-3.5 h-3.5" />

@@ -1,7 +1,7 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from 'next';
 import { cache } from 'react';
 
@@ -248,7 +248,7 @@ export default async function PublicNewsPage({ params, searchParams }: { params:
         
         {/* Search Bar */}
         <form className="relative w-full max-w-md mx-auto" action={`/p/news/${params.familyId}`}>
-          <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 opacity-50" />
+          <MagnifyingGlass className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 opacity-50" />
           <input
             type="text"
             name="q"

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ChevronDown } from "lucide-react";
+import { CaretDown } from "@phosphor-icons/react";
 
 type RoadmapSettingsModalProps = {
   isOpen: boolean;
@@ -66,7 +66,7 @@ export function RoadmapSettingsModal({ isOpen, onClose, scopeId }: RoadmapSettin
               <option value="midnight">Deep Midnight (Blueish)</option>
               <option value="cyberpunk">Cyberpunk (Neon/Yellow)</option>
               <option value="minimal">Minimal Light</option>
-            </select>            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />          </div>
+            </select>            <CaretDown size={14} weight="bold" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />          </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Studio Name</label>

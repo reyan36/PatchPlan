@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { ChevronDown } from "lucide-react";
+import { CaretDown } from "@phosphor-icons/react";
 
 type NewsSettingsModalProps = {
   isOpen: boolean;
@@ -68,7 +68,7 @@ export function NewsSettingsModal({ isOpen, onClose, scopeId }: NewsSettingsModa
               <option value="cyberpunk">Cyberpunk (Neon/Yellow)</option>
               <option value="minimal">Minimal Light</option>
             </select>
-            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+            <CaretDown size={14} weight="bold" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
           </div>
           </div>
           <div>
@@ -83,7 +83,7 @@ export function NewsSettingsModal({ isOpen, onClose, scopeId }: NewsSettingsModa
               <option value="gaming">Gaming Blog (Zomboid Style)</option>
               <option value="editorial">Editorial (Minimal Text-heavy)</option>
             </select>
-            <ChevronDown className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+            <CaretDown size={14} weight="bold" className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
           </div>
           </div>
           <div>

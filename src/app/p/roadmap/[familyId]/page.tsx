@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
-import { Globe, Search } from "lucide-react";
+import { Globe, MagnifyingGlass } from "@phosphor-icons/react";
 
 type RoadmapItem = {
   id: string;
@@ -152,7 +152,7 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
           {config.logoUrl ? (
             <img src={config.logoUrl} alt="Logo" className="w-16 h-16 object-contain" />
           ) : (
-            <Globe className="text-red-500 w-12 h-12" />
+            <Globe className="text-red-500 w-12 h-12" weight="duotone" />
           )}
           <div>
             <h1 className="text-4xl font-bold tracking-tight mb-2">
@@ -162,7 +162,7 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
           </div>
         </div>
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
+          <MagnifyingGlass className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 opacity-50" />
           <input
             type="text"
             placeholder="Search milestones..."

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, MoreHorizontal, MessageSquare, AlignLeft, Settings, Search, Filter, X, Trash2, User } from "lucide-react";
+import { Plus, DotsThree, ChatCircle, TextAlignLeft, SlidersHorizontal, MagnifyingGlass, Funnel, X, Trash, UserCircle } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Member } from "@/lib/FamilyContext";
 import { Login } from "@/components/auth/Login";
@@ -130,6 +130,9 @@ export default function BoardPage() {
         setColumns(defaultCols);
       }
       setConfigLoaded(true);
+    }, (err) => {
+      console.warn("Board config listener:", err.message);
+      setConfigLoaded(true);
     });
 
     // Tasks Collection scoped to family or personal
@@ -147,6 +150,9 @@ export default function BoardPage() {
       }
       
       setTasks(tasksData);
+      setTasksLoaded(true);
+    }, (err) => {
+      console.warn("Board tasks listener:", err.message);
       setTasksLoaded(true);
     });
 
@@ -297,7 +303,7 @@ export default function BoardPage() {
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors ${showFilters ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground hover:bg-border'}`}
           >
-            <Filter className="w-4 h-4" /> Filters
+            <Funnel size={16} weight={showFilters ? "fill" : "duotone"} /> Filters
           </button>
           
           {/* Settings Toggle */}
@@ -305,7 +311,7 @@ export default function BoardPage() {
             onClick={() => setShowSettings(true)}
             className="flex items-center gap-2 px-3 py-2 bg-muted text-foreground text-sm font-medium rounded-md hover:bg-border transition-colors"
           >
-            <Settings className="w-4 h-4" /> Board Settings
+            <SlidersHorizontal size={16} weight="duotone" /> Board Settings
           </button>
         </div>
       </header>
@@ -314,7 +320,7 @@ export default function BoardPage() {
       {showFilters && (
         <div className="mb-4 p-4 bg-card border border-border rounded-lg flex flex-wrap gap-4 items-center shrink-0 animate-in slide-in-from-top-2">
           <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <MagnifyingGlass size={16} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input 
               type="text" 
               placeholder="Search tasks..." 
@@ -339,7 +345,7 @@ export default function BoardPage() {
               onClick={() => { setSearchQuery(""); setFilterTag("All"); }}
               className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
             >
-              <X className="w-3 h-3" /> Clear Filters
+              <X size={14} weight="bold" /> Clear Filters
             </button>
           )}
         </div>
@@ -370,7 +376,7 @@ export default function BoardPage() {
                 className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-opacity p-1"
                 title="Delete Column"
               >
-                <Trash2 className="w-4 h-4" />
+                <Trash size={16} weight="duotone" />
               </button>
             </div>
 
@@ -408,7 +414,7 @@ export default function BoardPage() {
                         className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all p-1"
                         title="Delete Task"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash size={15} weight="duotone" />
                       </button>
                     </div>
                   </div>
@@ -416,11 +422,11 @@ export default function BoardPage() {
                   {/* Footer indicators */}
                   <div className="flex items-center justify-between text-muted-foreground mt-2">
                     <div className="flex items-center gap-3">
-                      {task.description && <AlignLeft className="w-3.5 h-3.5" />}
+                      {task.description && <TextAlignLeft size={14} weight="duotone" />}
                     </div>
                     {task.assigneeId && activeFamily && (
                       <div className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-xs font-medium text-foreground">
-                        <User className="w-3 h-3" />
+                        <UserCircle size={14} weight="duotone" />
                         {activeFamily.members.find(m => m.uid === task.assigneeId)?.nickname || "Unknown"}
                       </div>
                     )}
@@ -492,7 +498,7 @@ export default function BoardPage() {
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors"
                 >
-                  <Plus className="w-4 h-4" /> Add a card
+                  <Plus size={16} weight="bold" /> Add a card
                 </button>
               </div>
             )}
@@ -536,7 +542,7 @@ export default function BoardPage() {
               }}
               className="w-full flex items-center gap-2 px-4 py-3 bg-muted/20 hover:bg-muted/40 text-muted-foreground hover:text-foreground border border-border/50 border-dashed rounded-xl transition-colors font-medium text-sm"
             >
-              <Plus className="w-4 h-4" /> Add New Column
+              <Plus size={16} weight="bold" /> Add New Column
             </button>
           )}
         </div>

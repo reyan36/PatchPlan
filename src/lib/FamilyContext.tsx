@@ -64,6 +64,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         setDoc(profileRef, newProfile);
         setUserProfile(newProfile);
       }
+    }, (error) => {
+      console.warn("UserProfile listener error:", error.message);
+      setLoading(false);
     });
 
     return () => unsubProfile();
@@ -79,6 +82,9 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
         } else {
           setActiveFamily(null);
         }
+        setLoading(false);
+      }, (error) => {
+        console.warn("Family listener error:", error.message);
         setLoading(false);
       });
       return () => unsubFamily();
