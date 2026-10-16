@@ -29,11 +29,17 @@ export type IncidentItem = {
 
 const DAYS_COUNT = 45;
 
-/** Build Unix time ranges for the last N days (oldest -> newest) for UptimeRobot custom_uptime_ranges */
-function buildDayRanges(days: number): { rangesParam: string; labels: string[] } {
+type DaySlot = {
+  label: string;
+  startSec: number;
+  endSec: number;
+};
+
+/** Build UTC day slots for the last N days (oldest -> newest) */
+function buildDaySlots(days: number): DaySlot[] {
   const now = new Date();
-  const ranges: string[] = [];
-  const labels: string[] = [];
+  const nowSec = Math.floor(now.getTime() / 1000);
+  const slots: DaySlot[] = [];
 
   for (let i = days - 1; i >= 0; i--) {
     const start = new Date(
@@ -43,27 +49,38 @@ function buildDayRanges(days: number): { rangesParam: string; labels: string[] }
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i, 23, 59, 59)
     );
     const startSec = Math.floor(start.getTime() / 1000);
-    const endSec = Math.min(Math.floor(Date.now() / 1000), Math.floor(end.getTime() / 1000));
-    ranges.push(`${startSec}_${ Math.max(startSec + 60, endSec) }`);
-    labels.push(
-      start.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        timeZone: "UTC",
-      })
-    );
+    const endSec = i === 0 ? Math.max(startSec + 60, nowSec) : Math.floor(end.getTime() / 1000);
+
+    const label = start.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+
+    slots.push({ label, startSec, endSec });
   }
 
-  return { rangesParam: ranges.join("-"), labels };
+  return slots;
 }
 
-function generateHealthyBars(labels: string[]): DailyBar[] {
-  return labels.map((date) => ({
-    date,
-    uptime: 100,
-    status: "operational",
-  }));
+/** In fallback mode (no UptimeRobot monitor connected), only today has live probe data; prior days show "no-data" */
+function generateLiveProbeBars(slots: DaySlot[], todayOk: boolean): DailyBar[] {
+  return slots.map((slot, idx) => {
+    const isToday = idx === slots.length - 1;
+    if (!isToday) {
+      return {
+        date: slot.label,
+        uptime: 0,
+        status: "no-data",
+      };
+    }
+    return {
+      date: slot.label,
+      uptime: todayOk ? 100 : 95,
+      status: todayOk ? "operational" : "degraded",
+    };
+  });
 }
 
 async function probeUrl(url: string, timeoutMs = 3500): Promise<{ ok: boolean; ms: number }> {
@@ -86,9 +103,79 @@ async function probeUrl(url: string, timeoutMs = 3500): Promise<{ ok: boolean; m
   }
 }
 
+async function fetchUptimeRobotMonitors(apiKey: string, rangesParam: string) {
+  // Attempt 1: with custom_uptime_ranges
+  const paramsWithRanges = new URLSearchParams({
+    api_key: apiKey,
+    format: "json",
+    logs: "1",
+    logs_limit: "50",
+    response_times: "1",
+    response_times_limit: "12",
+    custom_uptime_ratios: "30",
+    custom_uptime_ranges: rangesParam,
+  });
+
+  const res1 = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Cache-Control": "no-cache",
+    },
+    body: paramsWithRanges.toString(),
+    cache: "no-store",
+  });
+
+  if (res1.ok) {
+    const data1 = await res1.json();
+    if (data1.stat === "ok" && Array.isArray(data1.monitors)) {
+      return { ok: true, monitors: data1.monitors, error: null };
+    }
+  }
+
+  // Attempt 2: fallback without custom_uptime_ranges (in case UptimeRobot rejects 45 ranges on free tier)
+  const paramsBasic = new URLSearchParams({
+    api_key: apiKey,
+    format: "json",
+    logs: "1",
+    logs_limit: "50",
+    response_times: "1",
+    response_times_limit: "12",
+    custom_uptime_ratios: "30",
+  });
+
+  const res2 = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Cache-Control": "no-cache",
+    },
+    body: paramsBasic.toString(),
+    cache: "no-store",
+  });
+
+  if (!res2.ok) {
+    return { ok: false, monitors: [], error: `HTTP ${res2.status}` };
+  }
+
+  const data2 = await res2.json();
+  if (data2.stat === "ok" && Array.isArray(data2.monitors)) {
+    return { ok: true, monitors: data2.monitors, error: null };
+  }
+
+  return {
+    ok: false,
+    monitors: [],
+    error: data2?.error?.message || data2?.error?.type || "Invalid API key or no monitors found",
+  };
+}
+
 export async function GET() {
-  const { rangesParam, labels } = buildDayRanges(DAYS_COUNT);
+  const slots = buildDaySlots(DAYS_COUNT);
+  const rangesParam = slots.map((s) => `${s.startSec}_${s.endSec}`).join("-");
   const apiKeyEnv = process.env.UPTIMEROBOT_API_KEY?.trim();
+
+  let diagnosticError: string | null = null;
 
   // 1. If UPTIMEROBOT_API_KEY is configured, fetch live monitors from UptimeRobot API v2
   if (apiKeyEnv) {
@@ -101,30 +188,11 @@ export async function GET() {
       const allMonitors: any[] = [];
 
       for (const apiKey of keys) {
-        const res = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Cache-Control": "no-cache",
-          },
-          body: JSON.stringify({
-            api_key: apiKey,
-            format: "json",
-            logs: 1,
-            logs_limit: 10,
-            response_times: 1,
-            response_times_limit: 12,
-            custom_uptime_ratios: "45",
-            custom_uptime_ranges: rangesParam,
-          }),
-          cache: "no-store",
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          if (data.stat === "ok" && Array.isArray(data.monitors)) {
-            allMonitors.push(...data.monitors);
-          }
+        const result = await fetchUptimeRobotMonitors(apiKey, rangesParam);
+        if (result.ok) {
+          allMonitors.push(...result.monitors);
+        } else if (result.error) {
+          diagnosticError = result.error;
         }
       }
 
@@ -138,32 +206,74 @@ export async function GET() {
           else if (m.status === 8) status = "degraded";
           else if (m.status === 0) status = "paused";
 
-          const rangeValues: string[] = (m.custom_uptime_ranges || "").split("-");
-          const monitorCreatedSec = m.create_datetime || 0;
+          const hasCustomRanges = typeof m.custom_uptime_ranges === "string" && m.custom_uptime_ranges.length > 0;
+          const rangeValues: string[] = hasCustomRanges ? m.custom_uptime_ranges.split("-") : [];
+          const monitorCreatedSec = Number(m.create_datetime || 0);
 
-          const dailyBars: DailyBar[] = labels.map((dateLabel, idx) => {
-            const rawVal = parseFloat(rangeValues[idx] ?? "100");
-            const uptime = isNaN(rawVal) ? 100 : rawVal;
-
-            // Check if this day was before the monitor existed
-            const dayDate = new Date(`${dateLabel} 23:59:59 UTC`);
-            if (monitorCreatedSec && dayDate.getTime() / 1000 < monitorCreatedSec) {
-              return { date: dateLabel, uptime: 100, status: "no-data" };
+          const dailyBars: DailyBar[] = slots.map((slot, idx) => {
+            // 1. Any day that ended BEFORE the monitor was created in UptimeRobot -> "no-data" (gray bar)
+            if (monitorCreatedSec > 0 && slot.endSec < monitorCreatedSec) {
+              return { date: slot.label, uptime: 0, status: "no-data" };
             }
 
-            let barStatus: DailyBar["status"] = "operational";
-            if (uptime === 0) barStatus = "outage";
-            else if (uptime < 99) barStatus = "degraded";
+            // Calculate any logged downtime seconds during this UTC day slot
+            let downSecondsOnDay = 0;
+            if (Array.isArray(m.logs)) {
+              for (const log of m.logs) {
+                if (log.type === 1) {
+                  const logStart = Number(log.datetime || 0);
+                  const logEnd = logStart + Number(log.duration || 0);
+                  const overlapStart = Math.max(slot.startSec, logStart);
+                  const overlapEnd = Math.min(slot.endSec, logEnd);
+                  if (overlapEnd > overlapStart) {
+                    downSecondsOnDay += overlapEnd - overlapStart;
+                  }
+                }
+              }
+            }
 
-            return { date: dateLabel, uptime, status: barStatus };
+            // 2. If UptimeRobot returned custom_uptime_ranges for this slot
+            if (hasCustomRanges && rangeValues[idx] !== undefined) {
+              const rawVal = parseFloat(rangeValues[idx]);
+              if (!isNaN(rawVal)) {
+                // UptimeRobot returns 0.000 if a monitor was created mid-day and hasn't accumulated full range stats yet
+                if (rawVal === 0 && downSecondsOnDay === 0) {
+                  if (m.status === 2) {
+                    return { date: slot.label, uptime: 100, status: "operational" };
+                  }
+                  return { date: slot.label, uptime: 0, status: "no-data" };
+                }
+
+                let barStatus: DailyBar["status"] = "operational";
+                if (rawVal === 0) barStatus = "outage";
+                else if (rawVal < 99) barStatus = "degraded";
+
+                return { date: slot.label, uptime: rawVal, status: barStatus };
+              }
+            }
+
+            // 3. Fallback calculation for days >= monitorCreatedSec using downtime logs
+            const activeWindowSec = Math.max(
+              60,
+              slot.endSec - Math.max(slot.startSec, monitorCreatedSec)
+            );
+            const ratio = Math.max(
+              0,
+              Math.min(100, ((activeWindowSec - downSecondsOnDay) / activeWindowSec) * 100)
+            );
+
+            let barStatus: DailyBar["status"] = "operational";
+            if (ratio === 0) barStatus = "outage";
+            else if (ratio < 99) barStatus = "degraded";
+
+            return { date: slot.label, uptime: ratio, status: barStatus };
           });
 
-          const avgResponse =
-            m.average_response_time
-              ? Math.round(parseFloat(m.average_response_time))
-              : m.response_times?.[0]?.value
-              ? Number(m.response_times[0].value)
-              : 42;
+          const avgResponse = m.average_response_time
+            ? Math.round(parseFloat(m.average_response_time))
+            : m.response_times?.[0]?.value
+            ? Number(m.response_times[0].value)
+            : 0;
 
           // Collect downtime/recovery logs
           if (Array.isArray(m.logs)) {
@@ -185,10 +295,17 @@ export async function GET() {
             });
           }
 
+          let hostname = "Production endpoint";
+          try {
+            if (m.url) hostname = new URL(m.url).hostname;
+          } catch {
+            hostname = m.url || "Production endpoint";
+          }
+
           return {
             id: String(m.id),
             name: m.friendly_name || "PatchPlan Monitor",
-            description: m.url ? new URL(m.url).hostname : "Production endpoint",
+            description: hostname,
             status,
             uptimeRatio: parseFloat(m.custom_uptime_ratio || "100").toFixed(2),
             responseTimeMs: avgResponse,
@@ -203,18 +320,21 @@ export async function GET() {
 
         return NextResponse.json({
           source: "uptimerobot",
+          keyConfigured: true,
+          diagnosticError: null,
           overallStatus: anyOutage ? "outage" : anyDegraded ? "degraded" : "operational",
           updatedAt: Date.now(),
           monitors,
           incidents: incidents.slice(0, 8),
         });
       }
-    } catch (err) {
+    } catch (err: any) {
+      diagnosticError = err?.message || "Failed to reach UptimeRobot API";
       console.warn("UptimeRobot fetch fallback:", err);
     }
   }
 
-  // 2. Built-in Live Infrastructure Probes (runs automatically when UPTIMEROBOT_API_KEY is not set)
+  // 2. Built-in Live Infrastructure Probes (runs when UPTIMEROBOT_API_KEY is not set or has 0 monitors)
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "patchplan-443a0";
 
   const [firestoreProbe, authProbe, discordProbe] = await Promise.all([
@@ -222,8 +342,6 @@ export async function GET() {
     probeUrl("https://identitytoolkit.googleapis.com"),
     probeUrl("https://discord.com/api/v10/gateway"),
   ]);
-
-  const healthyBars = generateHealthyBars(labels);
 
   const monitors: ServiceMonitor[] = [
     {
@@ -233,16 +351,16 @@ export async function GET() {
       status: "operational",
       uptimeRatio: "100.00",
       responseTimeMs: 18,
-      dailyBars: healthyBars,
+      dailyBars: generateLiveProbeBars(slots, true),
     },
     {
       id: "firestore-db",
       name: "Realtime Database (Firestore)",
       description: "Studio tasks, articles, roadmaps & network sync",
       status: firestoreProbe.ok ? "operational" : "degraded",
-      uptimeRatio: firestoreProbe.ok ? "99.99" : "99.40",
+      uptimeRatio: firestoreProbe.ok ? "100.00" : "99.40",
       responseTimeMs: firestoreProbe.ms,
-      dailyBars: healthyBars,
+      dailyBars: generateLiveProbeBars(slots, firestoreProbe.ok),
     },
     {
       id: "firebase-auth",
@@ -251,7 +369,7 @@ export async function GET() {
       status: authProbe.ok ? "operational" : "degraded",
       uptimeRatio: authProbe.ok ? "100.00" : "99.50",
       responseTimeMs: authProbe.ms,
-      dailyBars: healthyBars,
+      dailyBars: generateLiveProbeBars(slots, authProbe.ok),
     },
     {
       id: "public-hubs",
@@ -260,16 +378,16 @@ export async function GET() {
       status: "operational",
       uptimeRatio: "100.00",
       responseTimeMs: 24,
-      dailyBars: healthyBars,
+      dailyBars: generateLiveProbeBars(slots, true),
     },
     {
       id: "discord-webhooks",
       name: "Discord Webhook Relay",
       description: "Automated task completion & devlog embed notifications",
       status: discordProbe.ok ? "operational" : "degraded",
-      uptimeRatio: discordProbe.ok ? "99.98" : "99.20",
+      uptimeRatio: discordProbe.ok ? "100.00" : "99.20",
       responseTimeMs: discordProbe.ms,
-      dailyBars: healthyBars,
+      dailyBars: generateLiveProbeBars(slots, discordProbe.ok),
     },
   ];
 
@@ -277,6 +395,8 @@ export async function GET() {
 
   return NextResponse.json({
     source: "live-probe",
+    keyConfigured: Boolean(apiKeyEnv),
+    diagnosticError,
     overallStatus: anyDegraded ? "degraded" : "operational",
     updatedAt: Date.now(),
     monitors,

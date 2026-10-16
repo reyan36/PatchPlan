@@ -44,6 +44,18 @@ export function calculateVersion(indexFromOldest: number, customTag?: string): s
 
 // Known curated enhancements for historical commits
 const CURATED_COMMITS: Record<string, Partial<ChangelogEntry>> = {
+  "61f5b50": {
+    title: "Redesigned News CMS, System Status Page & Network CRM",
+    summary: "Rebuilt the studio article editor and public news hub, added a real-time system status page, and expanded the Network tab with platform badges and CSV import/export.",
+    type: "feature",
+    badge: "Release",
+    highlights: [
+      "Rebuilt News management and distraction-free article editor with autosave and slide-over page settings",
+      "Added real-time System Status page (/status) with 45-day uptime bars and UptimeRobot integration",
+      "Upgraded Studio Network with platform icons, audience tiers, niche tags, and CSV import/export",
+      "Redesigned Landing Page with Bento feature showcase and Nebius × NVIDIA AI preview"
+    ]
+  },
   "e5c9349": {
     title: "Changelog, Typography & Landing Refresh",
     summary: "Introduced the public changelog page, switched typography to Instrument Sans across the app, and refined the landing and network pages.",

@@ -14,6 +14,8 @@ import type { ServiceMonitor, IncidentItem } from "@/app/api/status/route";
 
 type StatusPayload = {
   source: "uptimerobot" | "live-probe";
+  keyConfigured?: boolean;
+  diagnosticError?: string | null;
   overallStatus: "operational" | "degraded" | "outage";
   updatedAt: number;
   monitors: ServiceMonitor[];
@@ -113,6 +115,21 @@ export default function StatusPage() {
             <p className="mt-2 text-sm text-zinc-400">
               Live uptime and response metrics across PatchPlan services.
             </p>
+            {!loading && data && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px] font-mono text-zinc-500">
+                <span>
+                  Source:{" "}
+                  <span className="text-zinc-300">
+                    {data.source === "uptimerobot" ? "UptimeRobot API" : "Live Endpoint Probes"}
+                  </span>
+                </span>
+                {data.diagnosticError && (
+                  <span className="text-amber-400/90">
+                    · UptimeRobot note: {data.diagnosticError}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Overall Status Banner Pill */}
