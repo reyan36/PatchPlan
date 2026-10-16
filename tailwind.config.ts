@@ -9,9 +9,12 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-instrument-sans)", "system-ui", "-apple-system", "sans-serif"],
+      },
       colors: {
         background: "#000000",
-        foreground: "#ffffff",
+        foreground: "#FAFAFA",
         card: "#111111",
         "card-foreground": "#ffffff",
         border: "#333333",

@@ -1,0 +1,68 @@
+[
+  {
+    "version": "v0.1.2",
+    "isLatest": true,
+    "hash": "aa8372c",
+    "fullHash": "aa8372c84c1c884f25bf850bbb71eeb98d602629",
+    "date": "2026-10-15",
+    "relativeTime": "15h ago",
+    "timestamp": 1792072139,
+    "rawCommit": "Fixed Errors, Updated Icons, Added Copyright Year",
+    "rawBody": "",
+    "author": "reyan36",
+    "title": "UI Icon Overhaul & Auto-Updating Copyright Engine",
+    "summary": "Refreshed studio workspace icons to modern vector assets, eliminated DOM hydration warnings, and automated dynamic copyright year calculations across public hubs.",
+    "type": "fix",
+    "badge": "Polish & Fix",
+    "highlights": [
+      "Resolved nested button hydration mismatch in navigation header",
+      "Replaced legacy icons across studio workspace with clean Phosphor vector iconography",
+      "Automated annual copyright year in navigation and footers with zero manual upkeep",
+      "Enhanced Firestore snapshot listeners with ad-blocker fallback handling"
+    ]
+  },
+  {
+    "version": "v0.1.1",
+    "isLatest": false,
+    "hash": "60fe69b",
+    "fullHash": "60fe69b8e38365e076318db5dbf683e46b5bfb0c",
+    "date": "2026-10-14",
+    "relativeTime": "1d ago",
+    "timestamp": 1791954173,
+    "rawCommit": "Improved loading times, Optimized Patchplan",
+    "rawBody": "",
+    "author": "reyan36",
+    "title": "Performance Tuning & Load Time Optimization",
+    "summary": "Substantial performance improvements targeting Firestore listener latency, Next.js chunk caching, and bundle size reduction.",
+    "type": "performance",
+    "badge": "Performance",
+    "highlights": [
+      "Optimized Firestore real-time snapshot listeners to reduce redundant component re-renders",
+      "Refactored Next.js dev server cache rules to speed up hot module reloading",
+      "Reduced initial page load latency across team sprint boards and roadmaps",
+      "Streamlined client bundle size for faster time-to-interactive (TTI)"
+    ]
+  },
+  {
+    "version": "v0.1.0",
+    "isLatest": false,
+    "hash": "31880d1",
+    "fullHash": "31880d1d71a93d26aef09a92e1a1c25724fdada3",
+    "date": "2026-10-09",
+    "relativeTime": "1w ago",
+    "timestamp": 1791499708,
+    "rawCommit": "Initial Commit",
+    "rawBody": "Working Complete With Minor Bugs",
+    "author": "reyan36",
+    "title": "PatchPlan Studio Genesis — Initial Beta Launch",
+    "summary": "Initial open beta release of the PatchPlan game development project manager and public roadmapping suite.",
+    "type": "feature",
+    "badge": "Initial Release",
+    "highlights": [
+      "Core studio dashboard with team Family workspace creation and join codes",
+      "Game-native Kanban sprint boards with Art, Code, Audio, Design, and Bug pipelines",
+      "Living Game Design Docs (GDD) with Tiptap rich text and Tldraw whiteboard canvas",
+      "Public milestone roadmaps with custom branding and shareable links"
+    ]
+  }
+]

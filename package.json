@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/generate-changelog.js && next build",
+    "changelog": "node scripts/generate-changelog.js",
     "start": "next start",
     "lint": "next lint"
   },
