@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { ArrowLeft, ShareNetwork, Check, ArrowSquareOut } from "@phosphor-icons/react";
+import { ArrowLeft, ShareNetwork, Check, ArrowUpRight } from "@phosphor-icons/react";
+import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate } from "@/lib/newsTheme";
 
 type ArticleData = {
   id: string;
@@ -12,215 +13,247 @@ type ArticleData = {
   excerpt: string;
   coverImage: string;
   content: string;
+  category: string;
   familyId: string;
   authorName: string;
   authorRole: string;
   socialX: string;
   socialLabel?: string;
-  createdAt: number;
-  expired?: boolean;
-}
+  date: number;
+};
+
+type State = { kind: "loading" } | { kind: "missing" } | { kind: "expired" } | { kind: "ok"; article: ArticleData };
 
 export default function PublicArticlePage({ params }: { params: { articleId: string } }) {
-  const [article, setArticle] = useState<ArticleData | null>(null);
-  const [config, setConfig] = useState<any>({ theme: 'dark', logoUrl: '' });
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<State>({ kind: "loading" });
+  const [config, setConfig] = useState<any>({});
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       try {
-        const docSnap = await getDoc(doc(db, "articles", params.articleId));
-        if (docSnap.exists() && docSnap.data().status === "published") {
-          const data = docSnap.data();
-          const famId = data.familyId || data.userId;
-
-          const configDoc = await getDoc(doc(db, "public_configs", famId));
-          if (configDoc.exists()) {
-            const cData = configDoc.data();
-            setConfig(cData);
-            if (cData.newsExpiresAt !== undefined && cData.newsExpiresAt !== -1 && cData.newsExpiresAt > 0 && Date.now() > cData.newsExpiresAt) {
-              setArticle({ expired: true } as any);
-              setLoading(false);
-              return;
-            }
-          }
-
-          setArticle({
-            id: docSnap.id,
-            title: data.title,
-            excerpt: data.excerpt,
-            coverImage: data.coverImage,
-            content: data.content,
-            familyId: famId,
-            authorName: data.authorName,
-            authorRole: data.authorRole,
-            socialX: data.socialX,
-            socialLabel: data.socialLabel,
-            createdAt: data.createdAt?.toMillis() || Date.now()
-          } as ArticleData);
-          document.title = data.title;
+        const snap = await getDoc(doc(db, "articles", params.articleId));
+        if (!snap.exists() || snap.data().status !== "published") {
+          setState({ kind: "missing" });
+          return;
         }
+        const data = snap.data();
+        const famId = data.familyId || data.userId;
+
+        const configDoc = await getDoc(doc(db, "public_configs", famId)).catch(() => null);
+        if (configDoc && configDoc.exists()) {
+          const c = configDoc.data();
+          setConfig(c);
+          if (c.newsExpiresAt !== undefined && c.newsExpiresAt !== -1 && c.newsExpiresAt > 0 && Date.now() > c.newsExpiresAt) {
+            setState({ kind: "expired" });
+            return;
+          }
+        }
+
+        setState({
+          kind: "ok",
+          article: {
+            id: snap.id,
+            title: data.title || "Untitled",
+            excerpt: data.excerpt || "",
+            coverImage: data.coverImage || "",
+            content: data.content || "",
+            category: data.category || "",
+            familyId: famId,
+            authorName: data.authorName || "",
+            authorRole: data.authorRole || "",
+            socialX: data.socialX || "",
+            socialLabel: data.socialLabel,
+            date: data.publishedAt?.toMillis?.() || data.createdAt?.toMillis?.() || Date.now(),
+          },
+        });
+        document.title = data.title || "Article";
       } catch (err) {
         console.error(err);
-      } finally {
-        setLoading(false);
+        setState({ kind: "missing" });
       }
-    };
-    load();
+    })();
   }, [params.articleId]);
 
-  const handleShare = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
+      try {
+        await navigator.share({ url, title: document.title });
+        return;
+      } catch {}
     }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const getThemeClasses = () => {
-    switch (config.theme) {
-      case 'midnight': return 'bg-[#0a0f1c] text-gray-200';
-      case 'cyberpunk': return 'bg-[#000] text-yellow-500';
-      case 'minimal': return 'bg-[#fcfcfc] text-gray-900';
-      default: return 'bg-[#141414] text-gray-200';
-    }
-  };
+  const resolvedThemeKey = config.newsTheme || config.theme;
+  const theme = resolveTheme(resolvedThemeKey);
+  const vars = themeVars(resolvedThemeKey, config.newsAccent);
+  const tpl: string = config.newsTemplate || "standard";
+  const studio: string = config.newsStudioName || config.studioName || config.roadmapStudioName || "";
+  const logoUrl: string = config.newsLogoUrl || config.logoUrl || "";
 
-  const getTitleClasses = () => {
-    switch (config.theme) {
-      case 'minimal': return 'text-black';
-      case 'cyberpunk': return 'text-yellow-400';
-      default: return 'text-white';
-    }
-  };
+  const shell = (children: React.ReactNode) => (
+    <div style={vars} className="min-h-screen bg-[var(--pp-bg)] text-[var(--pp-fg)] antialiased">{children}</div>
+  );
 
-  if (loading) return <div className={`min-h-screen ${getThemeClasses()} flex items-center justify-center`}>Loading...</div>;
-
-  if (article?.expired) {
-    return (
-      <div className={`min-h-screen ${getThemeClasses()} flex flex-col items-center justify-center`}>
-        <h1 className="text-2xl font-bold mb-4">Link Expired</h1>
-        <p className="opacity-60">This news link is no longer available.</p>
+  if (state.kind === "loading") {
+    return shell(
+      <div className="max-w-[720px] mx-auto px-6 pt-32 space-y-5 animate-pulse">
+        <div className="h-3 w-40 rounded bg-[var(--pp-surface)]" />
+        <div className="h-10 w-full rounded bg-[var(--pp-surface)]" />
+        <div className="h-10 w-2/3 rounded bg-[var(--pp-surface)]" />
+        <div className="h-72 w-full rounded-2xl bg-[var(--pp-surface)] mt-10" />
       </div>
     );
   }
 
-  if (!article) {
-    return (
-      <div className={`min-h-screen ${getThemeClasses()} flex flex-col items-center justify-center`}>
-        <h1 className="text-2xl font-bold mb-4">Article Not Found</h1>
-        <p className="opacity-60">This article may have been unpublished or deleted.</p>
+  if (state.kind !== "ok") {
+    return shell(
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight mb-2">{state.kind === "expired" ? "This link has expired" : "Article not found"}</h1>
+        <p className="text-sm text-[var(--pp-muted)]">
+          {state.kind === "expired" ? "Ask the studio for an updated news link." : "It may have been unpublished or deleted."}
+        </p>
       </div>
     );
   }
 
-  const readingTime = Math.max(1, Math.ceil((article.content?.length || 0) / 1000));
+  const article = state.article;
+  const { minutes } = readingStats(article.content);
+  const hubHref = `/p/news/${config.newsSlug || article.familyId}`;
+  const studioName = studio || article.authorName || "Studio";
+  const initial = (article.authorName || studioName)[0]?.toUpperCase() || "S";
 
-  return (
-    <div className={`min-h-screen font-sans selection:bg-red-500/30 ${getThemeClasses()}`}>
-      {/* Mini header for navigation back to hub */}
-      <header className={`px-6 py-4 flex items-center justify-between border-b ${config.theme === 'minimal' ? 'border-gray-200' : 'border-white/5 bg-black/20'}`}>
-         <Link href={`/p/news/${article.familyId}`} className="flex items-center gap-2 opacity-60 hover:opacity-100 transition-opacity font-medium text-sm">
-           <ArrowLeft className="w-4 h-4" /> Back to Hub
-         </Link>
-         {config.logoUrl && (
-           <img src={config.logoUrl} alt="Logo" className="h-8 object-contain" />
-         )}
-      </header>
+  const titleFont = tpl === "editorial" ? "font-serif font-normal" : tpl === "gaming" ? "font-extrabold uppercase tracking-wide" : "font-semibold tracking-tight";
 
-      <main className="max-w-[900px] mx-auto px-6 py-12 md:py-24">
-        
-        <h1 className={`text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-10 leading-tight ${getTitleClasses()}`}>
-          {article.title}
-        </h1>
-        
-        {/* Meta Info */}
-        <div className="flex flex-wrap items-center justify-between gap-6 mb-12 text-sm opacity-80 border-y py-6 border-current border-opacity-10">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-xl font-bold ${config.theme === 'minimal' ? 'bg-gray-200 text-gray-700' : 'bg-white/10 text-gray-300'}`}>
-               {article.authorName ? article.authorName[0].toUpperCase() : 'S'}
-            </div>
-            <div className="flex flex-col">
-              <span className={`font-bold text-base leading-tight ${getTitleClasses()}`}>
-                {article.authorName || 'Studio Developer'}
-              </span>
-              <span className="text-xs font-medium opacity-70 mb-1">{article.authorRole || 'Developer'}</span>
-              <div className="flex items-center gap-2 text-xs opacity-70">
-                {article.createdAt && (
-                  <time>
-                    {new Date(article.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </time>
-                )}
-                <span>•</span>
-                <span>{readingTime} min read</span>
-              </div>
-            </div>
-          </div>
+  // Map Tailwind Typography's color tokens onto the page theme so prose works for light and dark themes alike
+  const proseVars = {
+    ["--tw-prose-body" as any]: `color-mix(in srgb, ${theme.fg} 80%, transparent)`,
+    ["--tw-prose-headings" as any]: "var(--pp-fg)",
+    ["--tw-prose-lead" as any]: "var(--pp-muted)",
+    ["--tw-prose-links" as any]: "var(--pp-accent)",
+    ["--tw-prose-bold" as any]: "var(--pp-fg)",
+    ["--tw-prose-counters" as any]: "var(--pp-muted)",
+    ["--tw-prose-bullets" as any]: "var(--pp-muted)",
+    ["--tw-prose-hr" as any]: "var(--pp-border)",
+    ["--tw-prose-quotes" as any]: "var(--pp-fg)",
+    ["--tw-prose-quote-borders" as any]: "var(--pp-accent)",
+    ["--tw-prose-captions" as any]: "var(--pp-muted)",
+    ["--tw-prose-code" as any]: "var(--pp-fg)",
+    ["--tw-prose-pre-code" as any]: "var(--pp-fg)",
+    ["--tw-prose-pre-bg" as any]: "var(--pp-surface)",
+    ["--tw-prose-th-borders" as any]: "var(--pp-border)",
+    ["--tw-prose-td-borders" as any]: "var(--pp-border)",
+  };
 
-          <button 
+  return shell(
+    <>
+      {/* Nav */}
+      <nav className="sticky top-0 z-20 border-b border-[var(--pp-border)] backdrop-blur-md" style={{ background: `color-mix(in srgb, ${theme.bg} 85%, transparent)` }}>
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link href={hubHref} className="flex items-center gap-2 text-sm text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors">
+            <ArrowLeft size={15} weight="bold" /> All updates
+          </Link>
+          <Link href={hubHref} className="flex items-center gap-2 font-semibold tracking-tight">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" className="h-7 w-7 object-contain rounded-md" />
+            ) : null}
+            <span className="hidden sm:inline">{studioName}</span>
+          </Link>
+          <button
             onClick={handleShare}
-            className={`px-4 py-2 rounded-full border transition-colors font-medium text-sm flex items-center gap-2 ${config.theme === 'minimal' ? 'border-gray-300 hover:bg-gray-100 text-black' : 'border-white/20 hover:bg-white/10 text-white'}`}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm border border-[var(--pp-border)] text-[var(--pp-fg)] hover:bg-[var(--pp-surface)] transition-colors"
           >
-            {copied ? <Check className="w-4 h-4 text-green-500" weight="bold" /> : <ShareNetwork className="w-4 h-4" weight="duotone" />}
-            {copied ? 'Copied' : 'Share'}
+            {copied ? <Check size={14} weight="bold" className="text-[var(--pp-accent)]" /> : <ShareNetwork size={14} />}
+            {copied ? "Copied" : "Share"}
           </button>
         </div>
+      </nav>
 
+      <article>
+        {/* Header */}
+        <header className="max-w-[720px] mx-auto px-6 pt-16 md:pt-24">
+          <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-sm text-[var(--pp-muted)] mb-5">
+            {article.category && <span className="font-medium text-[var(--pp-accent)]">{article.category}</span>}
+            {article.category && <span className="opacity-50">·</span>}
+            <time>{formatDate(article.date)}</time>
+            <span className="opacity-50">·</span>
+            <span>{minutes} min read</span>
+          </div>
+          <h1 className={`text-4xl md:text-[3.25rem] leading-[1.1] ${titleFont}`}>{article.title}</h1>
+          {article.excerpt && <p className="mt-5 text-xl leading-relaxed text-[var(--pp-muted)]">{article.excerpt}</p>}
+
+          <div className="mt-8 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold bg-[var(--pp-surface)] border border-[var(--pp-border)]">{initial}</div>
+            <div className="leading-tight">
+              <div className="text-sm font-medium">{article.authorName || studioName}</div>
+              {article.authorRole && <div className="text-xs text-[var(--pp-muted)] mt-0.5">{article.authorRole}</div>}
+            </div>
+          </div>
+        </header>
+
+        {/* Cover */}
         {article.coverImage && (
-          <div className="w-full aspect-video bg-black/20 mb-16 shadow-2xl rounded-xl overflow-hidden">
-            <img 
-              src={article.coverImage} 
-              alt={article.title}
-              className="w-full h-full object-cover"
-            />
+          <div className="max-w-[1040px] mx-auto px-6 mt-12">
+            <div className="relative aspect-[16/8] rounded-2xl overflow-hidden border border-[var(--pp-border)] bg-[var(--pp-surface)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={article.coverImage} alt={article.title} className="absolute inset-0 w-full h-full object-cover" />
+            </div>
           </div>
         )}
 
-        {article.excerpt && (
-          <p className="text-xl md:text-2xl font-medium leading-relaxed mb-12 border-l-4 pl-6 opacity-80" style={{ borderColor: 'currentColor' }}>
-            {article.excerpt}
-          </p>
-        )}
+        {/* Body */}
+        <div className="max-w-[720px] mx-auto px-6 mt-12 md:mt-16">
+          <div
+            style={proseVars}
+            className={`prose prose-lg max-w-none prose-headings:tracking-tight prose-headings:font-semibold prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-pre:border prose-pre:border-[var(--pp-border)] prose-code:before:content-none prose-code:after:content-none prose-blockquote:font-normal prose-blockquote:not-italic ${tpl === "editorial" ? "prose-headings:font-serif prose-headings:font-normal" : ""}`}
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
+        </div>
 
-        {/* Content Rendered by Tiptap (Prose config) */}
-        <div 
-          className={`prose ${config.theme === 'minimal' ? '' : 'prose-invert'} prose-lg max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-red-500 hover:prose-a:text-red-400 prose-img:rounded-xl prose-img:shadow-lg`}
-          dangerouslySetInnerHTML={{ __html: article.content || '' }} 
-        />
-        
-        {/* Footer info for Article */}
-        <div className="mt-24 pt-8 border-t border-current border-opacity-10 opacity-70 flex flex-col items-center justify-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold ${config.theme === 'minimal' ? 'bg-gray-200 text-gray-700' : 'bg-white/10 text-gray-300'}`}>
-               {article.authorName ? article.authorName[0].toUpperCase() : 'S'}
+        {/* Author card */}
+        <footer className="max-w-[720px] mx-auto px-6 mt-20 mb-24">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 p-6 rounded-2xl border border-[var(--pp-border)] bg-[var(--pp-surface)]">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full flex items-center justify-center text-base font-semibold border border-[var(--pp-border)] bg-[var(--pp-bg)]">{initial}</div>
+              <div className="leading-tight">
+                <div className="text-xs text-[var(--pp-muted)] mb-1">Written by</div>
+                <div className="font-medium">{article.authorName || studioName}</div>
+                {article.authorRole && <div className="text-sm text-[var(--pp-muted)] mt-0.5">{article.authorRole}</div>}
+              </div>
             </div>
-            <div>
-              <div className={`font-bold text-lg ${getTitleClasses()}`}>{article.authorName || 'Studio Developer'}</div>
-              <div className="text-sm opacity-80">{article.authorRole || 'Developer'}</div>
-            </div>
+            {article.socialX && (
+              <a
+                href={normalizeUrl(article.socialX)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium border border-[var(--pp-border)] hover:border-[var(--pp-accent)] hover:text-[var(--pp-accent)] transition-colors self-start sm:self-auto"
+              >
+                {article.socialLabel || "Follow"} <ArrowUpRight size={14} weight="bold" />
+              </a>
+            )}
           </div>
-          
-          {article.socialX && (
-            <a 
-              href={article.socialX.startsWith('http') ? article.socialX : `https://${article.socialX}`} 
-              target="_blank" 
-              rel="noreferrer"
-              className="hover:underline transition-colors font-medium flex items-center gap-2"
-            >
-              {article.socialLabel || "Author Link"} <ArrowSquareOut className="w-4 h-4" />
-            </a>
-          )}
-        </div>
-      </main>
 
-      <footer className="border-t border-current border-opacity-10 py-10 px-6 shrink-0 text-center text-xs opacity-60">
-        <div suppressHydrationWarning>
-          &copy; {new Date().getFullYear()} {config.newsStudioName || article.authorName || 'Studio'}. Powered by PatchPlan.
+          <div className="mt-10 text-center">
+            <Link href={hubHref} className="inline-flex items-center gap-1.5 text-sm text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors">
+              <ArrowLeft size={14} weight="bold" /> More updates from {studioName}
+            </Link>
+          </div>
+        </footer>
+      </article>
+
+      <div className="border-t border-[var(--pp-border)]">
+        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--pp-muted)]">
+          <span suppressHydrationWarning>&copy; {new Date().getFullYear()} {studioName}</span>
+          <span>
+            Powered by <span className="font-medium text-[var(--pp-fg)]">PatchPlan</span>
+          </span>
         </div>
-      </footer>
-    </div>
+      </div>
+    </>
   );
 }
-
-

@@ -55,3 +55,12 @@ li[data-type="taskItem"][data-checked="true"] > div {
   text-decoration: line-through;
   color: theme('colors.muted-foreground');
 }
+
+/* Tiptap placeholder (article editor) */
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: #52525b;
+  pointer-events: none;
+}

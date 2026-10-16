@@ -8,7 +8,6 @@ import { Login } from "@/components/auth/Login";
 
 import { Skeleton } from "@/components/ui/Skeleton";
 import { LandingPage } from "@/components/landing/LandingPage";
-import Link from "next/link";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -45,17 +44,8 @@ export default function Home() {
           <h1 className="text-3xl font-bold tracking-tight mb-2">Dashboard</h1>
           <p className="text-muted-foreground">Welcome back to Patchplan. Here's an overview of your studio.</p>
         </div>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <Link 
-            href="/landing" 
-            className="text-xs px-3 py-1.5 rounded-full border border-border hover:bg-muted text-foreground transition-colors flex items-center gap-1.5"
-          >
-            <span>View Landing Page</span>
-            <span className="text-muted-foreground">↗</span>
-          </Link>
-          <div>
-            Logged in as <span className="font-medium text-foreground">{user.email}</span>
-          </div>
+        <div className="text-sm text-muted-foreground">
+          Logged in as <span className="font-medium text-foreground">{user.email}</span>
         </div>
       </header>
 

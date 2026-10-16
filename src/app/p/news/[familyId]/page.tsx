@@ -1,305 +1,371 @@
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
-import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
-import type { Metadata } from 'next';
-import { cache } from 'react';
+import { MagnifyingGlass, DiscordLogo, XLogo, Globe, ArrowRight } from "@phosphor-icons/react/dist/ssr";
+import type { Metadata } from "next";
+import { cache } from "react";
+import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate } from "@/lib/newsTheme";
 
-// Next.js ISR: Cache rendered news page at edge/server for 60 seconds
-export const revalidate = 60;
+// Always serve fresh data when articles or settings are updated
+export const dynamic = "force-dynamic";
 
 type Article = {
   id: string;
   title: string;
   excerpt: string;
   coverImage: string;
-  createdAt: any;
+  category: string;
+  authorName: string;
+  minutes: number;
+  date: number;
 };
 
 type ConfigData = {
   layout: string;
+  template: string;
+  theme: string;
+  accent: string;
   websiteUrl: string;
   discordUrl: string;
+  xUrl: string;
   newsHeading: string;
-  theme: string;
+  description: string;
   logoUrl: string;
-  template: string;
-}
+};
 
 const getNewsData = cache(async (slug: string) => {
   let familyId = slug;
   try {
-    const configQuery = query(collection(db, 'public_configs'), where('newsSlug', '==', slug));
-    const configSnap = await getDocs(configQuery);
-    if (!configSnap.empty) {
-      familyId = configSnap.docs[0].id;
-    }
-  } catch(e) {}
+    const configSnap = await getDocs(query(collection(db, "public_configs"), where("newsSlug", "==", slug)));
+    if (!configSnap.empty) familyId = configSnap.docs[0].id;
+  } catch (e) {}
+
   let familyName = "Studio";
+  let expired = false;
   let articles: Article[] = [];
-  let config: ConfigData = { layout: "grid", websiteUrl: "", discordUrl: "", newsHeading: "", theme: "dark", logoUrl: "", template: "standard" };
+  const config: ConfigData = {
+    layout: "grid",
+    template: "standard",
+    theme: "dark",
+    accent: "",
+    websiteUrl: "",
+    discordUrl: "",
+    xUrl: "",
+    newsHeading: "",
+    description: "",
+    logoUrl: "",
+  };
 
   try {
-    // Run config, family, user profile, and article queries in parallel for high speed
-    const [configDoc, familyDoc, userDoc, snapFam, snapUser] = await Promise.all([
-      getDoc(doc(db, "public_configs", familyId)),
-      getDoc(doc(db, "families", familyId)),
-      getDoc(doc(db, "user_profiles", familyId)),
-      getDocs(query(collection(db, "articles"), where("familyId", "==", familyId), where("status", "==", "published"))),
-      getDocs(query(collection(db, "articles"), where("userId", "==", familyId), where("status", "==", "published")))
+    // Only query public-accessible collections; isolate each promise so one failure never breaks the page
+    const [configDoc, snapFam, snapUser] = await Promise.all([
+      getDoc(doc(db, "public_configs", familyId)).catch(() => null),
+      getDocs(query(collection(db, "articles"), where("familyId", "==", familyId), where("status", "==", "published"))).catch(() => null),
+      getDocs(query(collection(db, "articles"), where("userId", "==", familyId), where("status", "==", "published"))).catch(() => null),
     ]);
 
-    if (configDoc.exists()) {
+    if (configDoc && configDoc.exists()) {
       const d = configDoc.data();
       if (d.newsLayout) config.layout = d.newsLayout;
-      if (d.newsWebsiteUrl) config.websiteUrl = d.newsWebsiteUrl;
-      if (d.newsDiscordUrl) config.discordUrl = d.newsDiscordUrl;
-      if (d.newsHeading) config.newsHeading = d.newsHeading;
-      if (d.newsTheme) config.theme = d.newsTheme;
-      if (d.newsLogoUrl) config.logoUrl = d.newsLogoUrl;
       if (d.newsTemplate) config.template = d.newsTemplate;
-      if (d.newsStudioName) familyName = d.newsStudioName;
-      
+      if (d.newsTheme || d.theme) config.theme = d.newsTheme || d.theme;
+      if (d.newsAccent) config.accent = d.newsAccent;
+      if (d.newsWebsiteUrl || d.websiteUrl) config.websiteUrl = d.newsWebsiteUrl || d.websiteUrl;
+      if (d.newsDiscordUrl || d.discordUrl) config.discordUrl = d.newsDiscordUrl || d.discordUrl;
+      if (d.newsXUrl) config.xUrl = d.newsXUrl;
+      if (d.newsHeading) config.newsHeading = d.newsHeading;
+      if (d.newsDescription) config.description = d.newsDescription;
+      if (d.newsLogoUrl || d.logoUrl) config.logoUrl = d.newsLogoUrl || d.logoUrl;
+      if (d.newsStudioName || d.studioName || d.roadmapStudioName) {
+        familyName = d.newsStudioName || d.studioName || d.roadmapStudioName;
+      }
+
       const expiresAt = d.newsExpiresAt;
       if (expiresAt !== undefined && expiresAt !== -1 && expiresAt > 0 && Date.now() > expiresAt) {
-        return { familyName: "Expired", articles: [], config };
+        expired = true;
       }
     }
 
-    if (familyName === "Studio") {
-      if (familyDoc.exists() && familyDoc.data().name) {
-        familyName = familyDoc.data().name;
-      } else if (userDoc.exists()) {
-        familyName = userDoc.data().displayName || userDoc.data().name || "Studio";
+    if (!expired) {
+      const famDocs = snapFam && !snapFam.empty ? snapFam.docs : [];
+      const userDocs = snapUser && !snapUser.empty ? snapUser.docs : [];
+      // Merge both familyId and userId matches (deduplicated by id)
+      const seen = new Set<string>();
+      const allDocs = [...famDocs, ...userDocs].filter(d => {
+        if (seen.has(d.id)) return false;
+        seen.add(d.id);
+        return true;
+      });
+      articles = allDocs
+        .map(d => {
+          const a = d.data();
+          return {
+            id: d.id,
+            title: a.title || "Untitled",
+            excerpt: a.excerpt || "",
+            coverImage: a.coverImage || "",
+            category: a.category || "",
+            authorName: a.authorName || "",
+            minutes: readingStats(a.content).minutes,
+            date: a.publishedAt?.toMillis?.() || a.createdAt?.toMillis?.() || Date.now(),
+          };
+        })
+        .sort((a, b) => b.date - a.date);
+
+      if (familyName === "Studio" && articles[0]?.authorName) {
+        familyName = articles[0].authorName;
       }
     }
-
-    const snap = !snapFam.empty ? snapFam : snapUser;
-    articles = snap.docs.map(d => ({
-      id: d.id,
-      title: d.data().title,
-      excerpt: d.data().excerpt,
-      coverImage: d.data().coverImage,
-      createdAt: d.data().createdAt?.toMillis() || Date.now()
-    })).sort((a, b) => b.createdAt - a.createdAt);
-    
   } catch (err) {
     console.error(err);
   }
 
-  return { familyName, articles, config };
+  return { familyName, articles, config, expired };
 });
 
 export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
   const { familyName, config } = await getNewsData(params.familyId);
-  const title = config.newsHeading || `${familyName} News`;
-  return { title };
+  return {
+    title: config.newsHeading || `${familyName} News`,
+    description: config.description || `Devlogs, patch notes and announcements from ${familyName}.`,
+  };
 }
 
-export default async function PublicNewsPage({ params, searchParams }: { params: { familyId: string }, searchParams?: { q?: string } }) {
-  const { familyName, articles, config } = await getNewsData(params.familyId);
-  
-  const getThemeClasses = () => {
-    switch (config.theme) {
-      case 'midnight': return 'bg-[#0a0f1c] text-gray-200';
-      case 'cyberpunk': return 'bg-[#000] text-yellow-500';
-      case 'minimal': return 'bg-[#fcfcfc] text-gray-900';
-      default: return 'bg-[#141414] text-gray-200';
-    }
-  };
+function titleClass(template: string) {
+  if (template === "gaming") return "font-extrabold uppercase tracking-wide group-hover:text-[var(--pp-accent)]";
+  if (template === "editorial") return "font-serif font-normal tracking-tight group-hover:underline decoration-1 underline-offset-[6px]";
+  return "font-semibold tracking-tight group-hover:opacity-80";
+}
 
-  const getTextTitleClasses = () => {
-    switch (config.theme) {
-      case 'minimal': return 'text-black group-hover:text-gray-600';
-      case 'cyberpunk': return 'text-yellow-400 group-hover:text-yellow-200';
-      default: return 'text-white group-hover:text-gray-300';
-    }
-  };
-  
-  const getTextBodyClasses = () => {
-    switch (config.theme) {
-      case 'minimal': return 'text-gray-600';
-      default: return 'text-gray-400';
-    }
-  };
-
-  if (familyName === "Expired") {
-    return (
-      <div className={`min-h-screen ${getThemeClasses()} flex flex-col items-center justify-center`}>
-        <h1 className="text-3xl font-bold mb-2">Link Expired</h1>
-        <p>This public news link has expired.</p>
-      </div>
-    );
-  }
-
-  const queryParam = searchParams?.q?.toLowerCase() || "";
-  const filteredArticles = articles.filter(a => a.title.toLowerCase().includes(queryParam) || a.excerpt.toLowerCase().includes(queryParam));
-
-  const renderArticle = (article: Article, isFeatured = false) => {
-    const isList = config.layout === 'list';
-    
-    // Gaming Template Styles (Zomboid)
-    if (config.template === 'gaming') {
-      return (
-        <Link 
-          key={article.id} 
-          href={`/p/article/${article.id}`}
-          className={`group flex ${isFeatured ? 'flex-col gap-4 mb-16' : (isList ? 'flex-row items-center gap-6 mb-10' : 'flex-col gap-3')} outline-none`}
-        >
-          {article.coverImage && (
-            <div className={`${isFeatured ? 'w-full aspect-video' : (isList ? 'w-64 aspect-video shrink-0' : 'w-full aspect-[16/9]')} overflow-hidden bg-black`}>
-              <img 
-                src={article.coverImage} 
-                alt={article.title} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-              />
-            </div>
-          )}
-          <div className="flex flex-col flex-1">
-            <h2 className={`${isFeatured ? 'text-3xl' : 'text-xl'} font-bold uppercase tracking-wider mb-2 text-red-500 group-hover:text-red-400 transition-colors`}>
-              {article.title} 
-              <span className="text-red-600 ml-1">›</span>
-            </h2>
-            <p className="text-gray-300 text-sm line-clamp-2 mb-3 font-medium">
-              {article.excerpt}
-            </p>
-            <div className="text-xs mt-auto font-medium tracking-wide">
-              <span className="text-red-500">News & Dev</span> <span className="text-gray-500 mx-2">|</span> <span className="text-white">{new Date(article.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-            </div>
-          </div>
-        </Link>
-      );
-    }
-
-    // Editorial Template
-    if (config.template === 'editorial') {
-      return (
-        <Link 
-          key={article.id} 
-          href={`/p/article/${article.id}`}
-          className={`group flex ${isFeatured ? 'flex-col gap-8 mb-20' : (isList ? 'flex-col md:flex-row items-center gap-8 mb-16' : 'flex-col gap-6')} outline-none`}
-        >
-          {article.coverImage && (
-            <div className={`${isFeatured ? 'w-full aspect-[21/9]' : (isList ? 'w-full md:w-1/2 aspect-[4/3] shrink-0' : 'w-full aspect-[4/3]')} overflow-hidden`}>
-              <img 
-                src={article.coverImage} 
-                alt={article.title} 
-                className="w-full h-full object-cover group-hover:opacity-80 transition-opacity duration-300 grayscale group-hover:grayscale-0" 
-              />
-            </div>
-          )}
-          <div className={`flex flex-col flex-1 ${isFeatured ? 'items-center text-center px-4' : ''}`}>
-            <div className="text-xs font-serif uppercase tracking-widest text-muted-foreground mb-4">
-              {new Date(article.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-            </div>
-            <h2 className={`${isFeatured ? 'text-4xl lg:text-5xl' : 'text-2xl'} font-serif font-light mb-4 leading-tight group-hover:underline decoration-1 underline-offset-4`}>
-              {article.title}
-            </h2>
-            <p className="text-muted-foreground font-serif leading-relaxed line-clamp-3">
-              {article.excerpt}
-            </p>
-          </div>
-        </Link>
-      );
-    }
-
-    // Standard Template
-    return (
-      <Link 
-        key={article.id} 
-        href={`/p/article/${article.id}`}
-        className={`group flex ${isFeatured ? 'flex-col md:flex-row gap-8 mb-16' : (isList ? 'flex-row items-center gap-8 mb-10 border-b border-white/10 pb-10' : 'flex-col gap-4')} outline-none`}
-      >
-        {article.coverImage && (
-          <div className={`${isFeatured ? 'w-full md:w-2/3 aspect-video' : (isList ? 'w-48 md:w-64 aspect-video shrink-0' : 'w-full aspect-video')} overflow-hidden bg-black/20 rounded-lg`}>
-            <img 
-              src={article.coverImage} 
-              alt={article.title} 
-              className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-[1.02] transition-all duration-500" 
-            />
-          </div>
-        )}
-        <div className={`flex flex-col flex-1 ${isFeatured ? 'justify-center' : ''}`}>
-          <h2 className={`${isFeatured ? 'text-4xl lg:text-5xl' : 'text-2xl'} font-black mb-3 leading-tight transition-colors tracking-tight ${getTextTitleClasses()}`}>
-            {article.title}
-          </h2>
-          <p className={`${getTextBodyClasses()} ${isFeatured ? 'line-clamp-4 text-lg' : 'line-clamp-2'} mb-4 leading-relaxed`}>
-            {article.excerpt}
-          </p>
-          <div className={`text-xs font-semibold uppercase tracking-widest mt-auto ${config.theme === 'minimal' ? 'text-gray-400' : 'text-gray-500'}`}>
-            {new Date(article.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} — {Math.max(1, Math.ceil(article.excerpt.length / 100))} min read
-          </div>
-        </div>
-      </Link>
-    );
-  };
-
-  const headerText = config.newsHeading || `${familyName} News`;
-
+function Cover({ src, alt, initial, className = "" }: { src: string; alt: string; initial: string; className?: string }) {
   return (
-    <div className={`min-h-screen font-sans flex flex-col ${getThemeClasses()}`}>
-      <header className={`px-6 py-12 md:py-20 flex flex-col items-center justify-center shrink-0 border-b ${config.theme === 'minimal' ? 'border-gray-200 bg-white' : 'border-white/5 bg-black/40'}`}>
-        {config.logoUrl && (
-          <img src={config.logoUrl} alt="Logo" className="w-20 h-20 object-contain mb-6" />
-        )}
-        <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-8 text-center drop-shadow-md">
-          {headerText}
-        </h1>
-        
-        {/* Search Bar */}
-        <form className="relative w-full max-w-md mx-auto" action={`/p/news/${params.familyId}`}>
-          <MagnifyingGlass className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 opacity-50" />
-          <input
-            type="text"
-            name="q"
-            defaultValue={searchParams?.q || ""}
-            placeholder="Search updates..."
-            className={`w-full pl-12 pr-4 py-3 rounded-full focus:outline-none focus:ring-1 text-sm transition-colors ${config.theme === 'minimal' ? 'bg-gray-100 hover:bg-gray-200 focus:bg-gray-200 ring-black text-black' : 'bg-white/5 hover:bg-white/10 focus:bg-white/10 ring-white/50 text-white border border-white/10'}`}
-          />
-        </form>
-      </header>
-
-      <main className="max-w-[1400px] w-full mx-auto px-6 py-16 flex-1">
-        <div className={config.layout === 'grid' || config.layout === 'featured' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12' : 'max-w-4xl mx-auto'}>
-          {config.layout === 'featured' && filteredArticles.length > 0 && (
-            <div className="col-span-full">
-              {renderArticle(filteredArticles[0], true)}
-            </div>
-          )}
-          
-          {(config.layout === 'featured' ? filteredArticles.slice(1) : filteredArticles).map(article => renderArticle(article))}
-          
-          {filteredArticles.length === 0 && (
-            <div className="col-span-full py-20 text-center opacity-50">
-              No articles found.
-            </div>
-          )}
+    <div className={`relative overflow-hidden rounded-xl border border-[var(--pp-border)] bg-[var(--pp-surface)] ${className}`}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+      ) : (
+        <div
+          className="absolute inset-0 flex items-center justify-center text-4xl font-semibold opacity-40"
+          style={{ background: "radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--pp-accent) 25%, transparent), transparent 60%)" }}
+        >
+          {initial}
         </div>
-      </main>
-
-      <footer className={`border-t py-16 px-6 shrink-0 flex flex-col items-center gap-10 opacity-80 ${config.theme === 'minimal' ? 'bg-gray-50 border-gray-200' : 'bg-black/80 border-white/5'}`}>
-        
-        <div className="w-full max-w-md text-center">
-           <h4 className="font-bold mb-3">Join the Mailing List</h4>
-           <div className="flex gap-2">
-             <input type="email" placeholder="Enter your email" className={`flex-1 px-4 py-2 rounded-md focus:outline-none ${config.theme === 'minimal' ? 'bg-white border border-gray-300' : 'bg-white/10 border border-white/10'}`} />
-             <button type="submit" className={`px-4 py-2 rounded-md font-bold ${config.theme === 'minimal' ? 'bg-black text-white' : 'bg-white text-black'}`}>Subscribe</button>
-           </div>
-        </div>
-
-        <div className="flex items-center justify-center gap-6 text-sm">
-          {config.websiteUrl && (
-            <a href={config.websiteUrl.startsWith('http') ? config.websiteUrl : `https://${config.websiteUrl}`} target="_blank" rel="noreferrer" className="hover:underline transition-colors">Website</a>
-          )}
-          {config.discordUrl && (
-            <a href={config.discordUrl.startsWith('http') ? config.discordUrl : `https://${config.discordUrl}`} target="_blank" rel="noreferrer" className="hover:underline transition-colors">Discord</a>
-          )}
-        </div>
-        <div className="text-xs" suppressHydrationWarning>&copy; {new Date().getFullYear()} {familyName}. Powered by PatchPlan.</div>
-      </footer>
+      )}
     </div>
   );
 }
 
+function Meta({ a, showAuthor = false }: { a: Article; showAuthor?: boolean }) {
+  return (
+    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-xs text-[var(--pp-muted)]">
+      {a.category && <span className="font-medium text-[var(--pp-accent)]">{a.category}</span>}
+      {a.category && <span className="opacity-50">·</span>}
+      <time>{formatDate(a.date)}</time>
+      <span className="opacity-50">·</span>
+      <span>{a.minutes} min read</span>
+      {showAuthor && a.authorName && (
+        <>
+          <span className="opacity-50">·</span>
+          <span>{a.authorName}</span>
+        </>
+      )}
+    </div>
+  );
+}
 
+export default async function PublicNewsPage({ params, searchParams }: { params: { familyId: string }; searchParams?: { q?: string; c?: string } }) {
+  const { familyName, articles, config, expired } = await getNewsData(params.familyId);
+  const theme = resolveTheme(config.theme);
+  const vars = themeVars(config.theme, config.accent);
+  const base = `/p/news/${params.familyId}`;
 
+  if (expired) {
+    return (
+      <div style={vars} className="min-h-screen flex flex-col items-center justify-center bg-[var(--pp-bg)] text-[var(--pp-fg)] px-6 text-center">
+        <h1 className="text-2xl font-semibold tracking-tight mb-2">This link has expired</h1>
+        <p className="text-sm text-[var(--pp-muted)]">Ask the studio for an updated news link.</p>
+      </div>
+    );
+  }
+
+  const q = (searchParams?.q || "").toLowerCase();
+  const activeCategory = searchParams?.c || "";
+  const categories = Array.from(new Set(articles.map(a => a.category).filter(Boolean)));
+
+  const filtered = articles.filter(a => {
+    if (activeCategory && a.category !== activeCategory) return false;
+    if (!q) return true;
+    return a.title.toLowerCase().includes(q) || a.excerpt.toLowerCase().includes(q);
+  });
+
+  const initial = (familyName[0] || "S").toUpperCase();
+  const heading = config.newsHeading || `${familyName} News`;
+  const tpl = config.template;
+  const headingFont = tpl === "editorial" ? "font-serif font-normal" : tpl === "gaming" ? "font-extrabold uppercase tracking-wide" : "font-semibold tracking-tight";
+
+  const hrefWith = (params: { q?: string; c?: string }) => {
+    const sp = new URLSearchParams();
+    if (params.q) sp.set("q", params.q);
+    if (params.c) sp.set("c", params.c);
+    const s = sp.toString();
+    return s ? `${base}?${s}` : base;
+  };
+
+  const GridCard = ({ a }: { a: Article }) => (
+    <Link href={`/p/article/${a.id}`} className="group flex flex-col gap-4 outline-none">
+      <Cover src={a.coverImage} alt={a.title} initial={initial} className="aspect-[16/10]" />
+      <div className="space-y-2">
+        <Meta a={a} />
+        <h2 className={`text-xl leading-snug transition-colors ${titleClass(tpl)}`}>{a.title}</h2>
+        {a.excerpt && <p className="text-sm leading-relaxed text-[var(--pp-muted)] line-clamp-2">{a.excerpt}</p>}
+      </div>
+    </Link>
+  );
+
+  const ListRow = ({ a }: { a: Article }) => (
+    <Link href={`/p/article/${a.id}`} className="group flex flex-col sm:flex-row gap-5 sm:gap-8 py-8 border-b border-[var(--pp-border)] outline-none first:pt-0">
+      <Cover src={a.coverImage} alt={a.title} initial={initial} className="w-full sm:w-64 aspect-[16/10] shrink-0" />
+      <div className="flex-1 flex flex-col justify-center space-y-2.5">
+        <Meta a={a} showAuthor />
+        <h2 className={`text-2xl leading-snug transition-colors ${titleClass(tpl)}`}>{a.title}</h2>
+        {a.excerpt && <p className="text-[15px] leading-relaxed text-[var(--pp-muted)] line-clamp-2">{a.excerpt}</p>}
+      </div>
+    </Link>
+  );
+
+  const Featured = ({ a }: { a: Article }) => (
+    <Link href={`/p/article/${a.id}`} className="group grid md:grid-cols-5 gap-8 items-center outline-none mb-16 pb-16 border-b border-[var(--pp-border)]">
+      <Cover src={a.coverImage} alt={a.title} initial={initial} className="md:col-span-3 aspect-[16/10]" />
+      <div className="md:col-span-2 space-y-4">
+        <Meta a={a} showAuthor />
+        <h2 className={`text-3xl md:text-4xl leading-[1.15] transition-colors ${titleClass(tpl)}`}>{a.title}</h2>
+        {a.excerpt && <p className="text-base leading-relaxed text-[var(--pp-muted)] line-clamp-4">{a.excerpt}</p>}
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--pp-accent)]">
+          Read article <ArrowRight size={14} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
+        </span>
+      </div>
+    </Link>
+  );
+
+  const layout = config.layout;
+  const showFeatured = layout === "featured" && filtered.length > 0 && !q && !activeCategory;
+  const rest = showFeatured ? filtered.slice(1) : filtered;
+
+  return (
+    <div style={vars} className="min-h-screen flex flex-col bg-[var(--pp-bg)] text-[var(--pp-fg)] antialiased">
+      {/* Nav */}
+      <nav className="sticky top-0 z-20 border-b border-[var(--pp-border)] backdrop-blur-md" style={{ background: `color-mix(in srgb, ${theme.bg} 85%, transparent)` }}>
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link href={base} className="flex items-center gap-2.5 font-semibold tracking-tight">
+            {config.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={config.logoUrl} alt="" className="h-7 w-7 object-contain rounded-md" />
+            ) : (
+              <span className="h-7 w-7 rounded-md flex items-center justify-center text-xs font-bold bg-[var(--pp-surface)] border border-[var(--pp-border)]">{initial}</span>
+            )}
+            <span>{familyName}</span>
+          </Link>
+          <div className="flex items-center gap-1">
+            {config.websiteUrl && (
+              <a href={normalizeUrl(config.websiteUrl)} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors">
+                <Globe size={15} /> <span className="hidden sm:inline">Website</span>
+              </a>
+            )}
+            {config.discordUrl && (
+              <a href={normalizeUrl(config.discordUrl)} target="_blank" rel="noreferrer" className="p-2 rounded-full text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors" aria-label="Discord">
+                <DiscordLogo size={17} />
+              </a>
+            )}
+            {config.xUrl && (
+              <a href={normalizeUrl(config.xUrl)} target="_blank" rel="noreferrer" className="p-2 rounded-full text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors" aria-label="X">
+                <XLogo size={16} />
+              </a>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero */}
+      <header className="max-w-6xl w-full mx-auto px-6 pt-16 md:pt-24 pb-10">
+        <h1 className={`text-4xl md:text-6xl leading-[1.05] ${headingFont}`}>{heading}</h1>
+        {config.description && <p className="mt-4 text-lg text-[var(--pp-muted)] max-w-2xl leading-relaxed">{config.description}</p>}
+
+        <div className="mt-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          {/* Category filters */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {categories.length > 1 && (
+              <>
+                <Link
+                  href={hrefWith({ q: searchParams?.q })}
+                  className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${!activeCategory ? "bg-[var(--pp-fg)] text-[var(--pp-bg)] border-transparent" : "border-[var(--pp-border)] text-[var(--pp-muted)] hover:text-[var(--pp-fg)]"}`}
+                >
+                  All
+                </Link>
+                {categories.map(c => (
+                  <Link
+                    key={c}
+                    href={hrefWith({ q: searchParams?.q, c })}
+                    className={`px-3.5 py-1.5 rounded-full text-sm border transition-colors ${activeCategory === c ? "bg-[var(--pp-fg)] text-[var(--pp-bg)] border-transparent" : "border-[var(--pp-border)] text-[var(--pp-muted)] hover:text-[var(--pp-fg)]"}`}
+                  >
+                    {c}
+                  </Link>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Search */}
+          <form action={base} className="relative w-full md:w-72">
+            {activeCategory && <input type="hidden" name="c" value={activeCategory} />}
+            <MagnifyingGlass size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--pp-muted)]" />
+            <input
+              type="text"
+              name="q"
+              defaultValue={searchParams?.q || ""}
+              placeholder="Search updates"
+              className="w-full pl-10 pr-4 py-2 rounded-full text-sm bg-[var(--pp-surface)] border border-[var(--pp-border)] text-[var(--pp-fg)] placeholder:text-[var(--pp-muted)] focus:outline-none focus:border-[var(--pp-accent)] transition-colors"
+            />
+          </form>
+        </div>
+      </header>
+
+      {/* Articles */}
+      <main className="max-w-6xl w-full mx-auto px-6 pb-24 flex-1">
+        {showFeatured && <Featured a={filtered[0]} />}
+
+        {rest.length > 0 && (
+          layout === "list" ? (
+            <div className="max-w-4xl">
+              {rest.map(a => <ListRow key={a.id} a={a} />)}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-14">
+              {rest.map(a => <GridCard key={a.id} a={a} />)}
+            </div>
+          )
+        )}
+
+        {filtered.length === 0 && (
+          <div className="py-24 text-center">
+            <p className="text-base font-medium">{articles.length === 0 ? "No updates yet" : "No matching updates"}</p>
+            <p className="text-sm text-[var(--pp-muted)] mt-1">
+              {articles.length === 0 ? "Check back soon — the team is working on it." : "Try a different search or category."}
+            </p>
+            {articles.length > 0 && (
+              <Link href={base} className="inline-block mt-5 text-sm text-[var(--pp-accent)] hover:underline underline-offset-4">Clear filters</Link>
+            )}
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-[var(--pp-border)]">
+        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--pp-muted)]">
+          <span suppressHydrationWarning>&copy; {new Date().getFullYear()} {familyName}</span>
+          <span>
+            Powered by <span className="font-medium text-[var(--pp-fg)]">PatchPlan</span>
+          </span>
+        </div>
+      </footer>
+    </div>
+  );
+}

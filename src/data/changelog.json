@@ -1,24 +1,46 @@
 [
   {
-    "version": "v0.1.2",
+    "version": "v0.1.3",
     "isLatest": true,
+    "hash": "e5c9349",
+    "fullHash": "e5c9349b48b3080f9f1237d871a1803b4c8a77c6",
+    "date": "2026-10-16",
+    "relativeTime": "4h ago",
+    "timestamp": 1792128795,
+    "rawCommit": "Added Changelog, new font, Improved design",
+    "rawBody": "",
+    "author": "reyan36",
+    "title": "Changelog, Typography & Landing Refresh",
+    "summary": "Introduced the public changelog page, switched typography to Instrument Sans across the app, and refined the landing and network pages.",
+    "type": "feature",
+    "badge": "Release",
+    "highlights": [
+      "Added dedicated Changelog page with automatic version tracking",
+      "Updated typography to Instrument Sans across landing page and workspace",
+      "Cleaned up dashboard footer and removed default sample data on Network page",
+      "Refined dark palette and surface contrast across pages"
+    ]
+  },
+  {
+    "version": "v0.1.2",
+    "isLatest": false,
     "hash": "aa8372c",
     "fullHash": "aa8372c84c1c884f25bf850bbb71eeb98d602629",
     "date": "2026-10-15",
-    "relativeTime": "15h ago",
+    "relativeTime": "19h ago",
     "timestamp": 1792072139,
     "rawCommit": "Fixed Errors, Updated Icons, Added Copyright Year",
     "rawBody": "",
     "author": "reyan36",
-    "title": "UI Icon Overhaul & Auto-Updating Copyright Engine",
-    "summary": "Refreshed studio workspace icons to modern vector assets, eliminated DOM hydration warnings, and automated dynamic copyright year calculations across public hubs.",
+    "title": "Icon Refresh & Footer Cleanup",
+    "summary": "Replaced legacy workspace icons with Phosphor icons, fixed header hydration issues, and added automatic copyright year updates.",
     "type": "fix",
-    "badge": "Polish & Fix",
+    "badge": "Fixes",
     "highlights": [
-      "Resolved nested button hydration mismatch in navigation header",
-      "Replaced legacy icons across studio workspace with clean Phosphor vector iconography",
-      "Automated annual copyright year in navigation and footers with zero manual upkeep",
-      "Enhanced Firestore snapshot listeners with ad-blocker fallback handling"
+      "Fixed nested button hydration warning in navigation header",
+      "Updated workspace icons to Phosphor vector icons",
+      "Added automatic copyright year across footers",
+      "Improved Firestore listener error handling when offline or blocked"
     ]
   },
   {
@@ -27,7 +49,7 @@
     "hash": "60fe69b",
     "fullHash": "60fe69b8e38365e076318db5dbf683e46b5bfb0c",
     "date": "2026-10-14",
-    "relativeTime": "1d ago",
+    "relativeTime": "2d ago",
     "timestamp": 1791954173,
     "rawCommit": "Improved loading times, Optimized Patchplan",
     "rawBody": "",

@@ -17,16 +17,28 @@ function formatRelativeTime(timestampSec) {
 
 // Curated entries for historical commits
 const CURATED_COMMITS = {
-  "aa8372c": {
-    title: "UI Icon Overhaul & Auto-Updating Copyright Engine",
-    summary: "Refreshed studio workspace icons to modern vector assets, eliminated DOM hydration warnings, and automated dynamic copyright year calculations across public hubs.",
-    type: "fix",
-    badge: "Polish & Fix",
+  "e5c9349": {
+    title: "Changelog, Typography & Landing Refresh",
+    summary: "Introduced the public changelog page, switched typography to Instrument Sans across the app, and refined the landing and network pages.",
+    type: "feature",
+    badge: "Release",
     highlights: [
-      "Resolved nested button hydration mismatch in navigation header",
-      "Replaced legacy icons across studio workspace with clean Phosphor vector iconography",
-      "Automated annual copyright year in navigation and footers with zero manual upkeep",
-      "Enhanced Firestore snapshot listeners with ad-blocker fallback handling"
+      "Added dedicated Changelog page with automatic version tracking",
+      "Updated typography to Instrument Sans across landing page and workspace",
+      "Cleaned up dashboard footer and removed default sample data on Network page",
+      "Refined dark palette and surface contrast across pages"
+    ]
+  },
+  "aa8372c": {
+    title: "Icon Refresh & Footer Cleanup",
+    summary: "Replaced legacy workspace icons with Phosphor icons, fixed header hydration issues, and added automatic copyright year updates.",
+    type: "fix",
+    badge: "Fixes",
+    highlights: [
+      "Fixed nested button hydration warning in navigation header",
+      "Updated workspace icons to Phosphor vector icons",
+      "Added automatic copyright year across footers",
+      "Improved Firestore listener error handling when offline or blocked"
     ]
   },
   "60fe69b": {

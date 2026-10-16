@@ -47,22 +47,22 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
           familyId = configSnap.docs[0].id;
         }
 
-        // Fetch configs, family, user profile, and roadmap items concurrently in parallel
+        // Fetch configs, family, user profile, and roadmap items concurrently; isolate errors for unauthenticated visitors
         const [configDoc, pubConfigDoc, familyDoc, userDoc, famSnap, userSnap] = await Promise.all([
-          getDoc(doc(db, "roadmap_configs", familyId)),
-          getDoc(doc(db, "public_configs", familyId)),
-          getDoc(doc(db, "families", familyId)),
-          getDoc(doc(db, "user_profiles", familyId)),
-          getDocs(query(collection(db, "roadmap"), where("familyId", "==", familyId))),
-          getDocs(query(collection(db, "roadmap"), where("userId", "==", familyId)))
+          getDoc(doc(db, "roadmap_configs", familyId)).catch(() => null),
+          getDoc(doc(db, "public_configs", familyId)).catch(() => null),
+          getDoc(doc(db, "families", familyId)).catch(() => null),
+          getDoc(doc(db, "user_profiles", familyId)).catch(() => null),
+          getDocs(query(collection(db, "roadmap"), where("familyId", "==", familyId))).catch(() => null),
+          getDocs(query(collection(db, "roadmap"), where("userId", "==", familyId))).catch(() => null)
         ]);
 
-        if (configDoc.exists()) {
+        if (configDoc && configDoc.exists()) {
           setColumns(configDoc.data().columns || []);
         }
 
         let fetchedFamilyName = "Studio";
-        if (pubConfigDoc.exists()) {
+        if (pubConfigDoc && pubConfigDoc.exists()) {
           const d = pubConfigDoc.data();
           if (d.roadmapExpiresAt !== undefined && d.roadmapExpiresAt !== -1 && d.roadmapExpiresAt > 0 && Date.now() > d.roadmapExpiresAt) {
             setLoading(false);
@@ -84,17 +84,17 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
         }
 
         if (fetchedFamilyName === "Studio") {
-          if (familyDoc.exists() && familyDoc.data().name) {
+          if (familyDoc && familyDoc.exists() && familyDoc.data().name) {
             fetchedFamilyName = familyDoc.data().name;
-          } else if (userDoc.exists()) {
+          } else if (userDoc && userDoc.exists()) {
             fetchedFamilyName = userDoc.data().displayName || userDoc.data().name || "Studio";
           }
         }
         
         setFamilyName(fetchedFamilyName);
 
-        const snap = !famSnap.empty ? famSnap : userSnap;
-        const fetchedItems = snap.docs.map(d => ({ id: d.id, ...d.data() })) as RoadmapItem[];
+        const docs = famSnap && !famSnap.empty ? famSnap.docs : (userSnap ? userSnap.docs : []);
+        const fetchedItems = docs.map(d => ({ id: d.id, ...d.data() })) as RoadmapItem[];
         setItems(fetchedItems);
       } catch (err) {
         console.error(err);
