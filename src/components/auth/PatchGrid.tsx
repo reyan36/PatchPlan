@@ -104,7 +104,7 @@ function spriteCells(s: Sprite) {
   const r0 = GLYPH_ROW + Math.floor((9 - h) / 2);
   const out: { idx: number; fill: string }[] = [];
   s.art.forEach((line, r) =>
-    [...line].forEach((ch, c) => {
+    line.split("").forEach((ch, c) => {
       if (ch === ".") return;
       out.push({ idx: (r0 + r) * COLS + (c0 + c), fill: ch === "w" ? WHITE : s.color });
     })
