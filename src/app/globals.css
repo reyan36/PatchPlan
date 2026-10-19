@@ -64,3 +64,30 @@ li[data-type="taskItem"][data-checked="true"] > div {
   color: #52525b;
   pointer-events: none;
 }
+
+/* ─── Landing / auth motion ─── */
+@keyframes pp-pop { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes pp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pp-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes pp-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes pp-blink { 50% { opacity: 0; } }
+@keyframes pp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes pp-shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+
+.pp-pop { animation: pp-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.pp-fade { animation: pp-fade 0.25s ease-out both; }
+.pp-rise { animation: pp-rise 0.35s ease-out both; }
+.pp-grow { transform-origin: left; animation: pp-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.pp-caret { animation: pp-blink 1s steps(1) infinite; }
+.pp-float-a { animation: pp-float 6s ease-in-out infinite; }
+.pp-float-b { animation: pp-float 7s ease-in-out -2s infinite; }
+.pp-float-c { animation: pp-float 6.5s ease-in-out -4s infinite; }
+.pp-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.04) 100%);
+  background-size: 200% 100%;
+  animation: pp-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-pop, .pp-fade, .pp-rise, .pp-grow, .pp-float-a, .pp-float-b, .pp-float-c, .pp-shimmer, .pp-caret { animation: none !important; }
+}

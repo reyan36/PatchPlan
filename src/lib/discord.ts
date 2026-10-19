@@ -88,3 +88,40 @@ export const notifyNewsPublished = async (scopeId: string, articleTitle: string,
     console.error("Discord notifyNewsPublished failed", err);
   }
 };
+
+export const notifyPatchNotes = async (
+  scopeId: string,
+  title: string,
+  summary: string,
+  articleUrl: string,
+  credits: string[]
+) => {
+  if (!scopeId) return false;
+  try {
+    const docSnap = await getDoc(doc(db, "integrations", scopeId));
+    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl) return false;
+
+    const names = Array.from(new Set(credits.filter(Boolean)));
+    const res = await fetch(docSnap.data().discordWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        embeds: [{
+          title: `🛠️ ${title}`,
+          description: summary,
+          url: articleUrl,
+          color: 5763719, // Green
+          fields: names.length
+            ? [{ name: "Thanks to the players who reported these", value: names.slice(0, 20).join(", ").slice(0, 1000) }]
+            : [],
+          footer: { text: "PatchPlan Player Signal" },
+          timestamp: new Date().toISOString()
+        }]
+      })
+    });
+    return res.ok;
+  } catch (err) {
+    console.error("Discord notifyPatchNotes failed", err);
+    return false;
+  }
+};

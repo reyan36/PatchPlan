@@ -1,23 +1,43 @@
 [
   {
-    "version": "v0.1.4",
+    "version": "v0.1.5",
     "isLatest": true,
+    "hash": "d49f28b",
+    "fullHash": "d49f28b9fbebaa104f8b62ef99567df5bfcd6a45",
+    "date": "2026-10-16",
+    "relativeTime": "just now",
+    "timestamp": 1792147202,
+    "rawCommit": "Fixed Status Page Issues",
+    "rawBody": "",
+    "author": "reyan36",
+    "title": "Fixed Status Page Issues",
+    "summary": "Fixed Status Page Issues implemented in the studio workspace.",
+    "type": "fix",
+    "badge": "Fix",
+    "highlights": [
+      "Fixed Status Page Issues"
+    ]
+  },
+  {
+    "version": "v0.1.4",
+    "isLatest": false,
     "hash": "61f5b50",
     "fullHash": "61f5b50700c63f4e5e6568a4bc904b941270e2f3",
     "date": "2026-10-16",
-    "relativeTime": "just now",
+    "relativeTime": "21m ago",
     "timestamp": 1792145915,
     "rawCommit": "Updated news page, added status page, Improved network tab",
     "rawBody": "",
     "author": "reyan36",
-    "title": "Updated news page, added status page, Improved network tab",
-    "summary": "Updated news page along with added status page, improved network tab.",
+    "title": "Redesigned News CMS, System Status Page & Network CRM",
+    "summary": "Rebuilt the studio article editor and public news hub, added a real-time system status page, and expanded the Network tab with platform badges and CSV import/export.",
     "type": "feature",
-    "badge": "Feature",
+    "badge": "Release",
     "highlights": [
-      "Updated news page",
-      "Added status page",
-      "Improved network tab"
+      "Rebuilt News management and distraction-free article editor with autosave and slide-over page settings",
+      "Added real-time System Status page (/status) with 45-day uptime bars and UptimeRobot integration",
+      "Upgraded Studio Network with platform icons, audience tiers, niche tags, and CSV import/export",
+      "Redesigned Landing Page with Bento feature showcase and Nebius × NVIDIA AI preview"
     ]
   },
   {
@@ -26,7 +46,7 @@
     "hash": "e5c9349",
     "fullHash": "e5c9349b48b3080f9f1237d871a1803b4c8a77c6",
     "date": "2026-10-16",
-    "relativeTime": "4h ago",
+    "relativeTime": "5h ago",
     "timestamp": 1792128795,
     "rawCommit": "Added Changelog, new font, Improved design",
     "rawBody": "",

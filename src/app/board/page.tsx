@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, DotsThree, ChatCircle, TextAlignLeft, SlidersHorizontal, MagnifyingGlass, Funnel, X, Trash, UserCircle } from "@phosphor-icons/react";
+import { Plus, DotsThree, ChatCircle, TextAlignLeft, SlidersHorizontal, MagnifyingGlass, Funnel, X, Trash, UserCircle, Megaphone } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Member } from "@/lib/FamilyContext";
 import { Login } from "@/components/auth/Login";
@@ -23,6 +23,7 @@ type Task = {
   familyId: string;
   assigneeId?: string;
   description?: string;
+  reporters?: string[];
 };
 
 const TAGS: Tag[] = ["Art", "Code", "Audio", "Design", "Bug", "Marketing", "Other"];
@@ -67,6 +68,12 @@ export default function BoardPage() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mouseX = useRef<number | null>(null);
+
+  // Deep link from search: /board?task=<id>
+  useEffect(() => {
+    const taskParam = new URLSearchParams(window.location.search).get("task");
+    if (taskParam) setSelectedTaskId(taskParam);
+  }, []);
 
   // Auto-scroll loop
   useEffect(() => {
@@ -423,6 +430,11 @@ export default function BoardPage() {
                   <div className="flex items-center justify-between text-muted-foreground mt-2">
                     <div className="flex items-center gap-3">
                       {task.description && <TextAlignLeft size={14} weight="duotone" />}
+                      {!!task.reporters?.length && (
+                        <span className="inline-flex items-center gap-1 text-xs" title={`Reported by ${task.reporters.join(", ")}`}>
+                          <Megaphone size={14} weight="duotone" /> {task.reporters.length}
+                        </span>
+                      )}
                     </div>
                     {task.assigneeId && activeFamily && (
                       <div className="flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-xs font-medium text-foreground">

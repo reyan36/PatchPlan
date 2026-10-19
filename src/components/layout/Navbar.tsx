@@ -14,7 +14,8 @@ import {
   Gear, 
   SignOut,
   Buildings,
-  User as UserIcon
+  User as UserIcon,
+  Sparkle
 } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/AuthContext';
 import { useDirty } from '@/lib/DirtyContext';
@@ -53,6 +54,7 @@ export default function Navbar() {
     { name: 'News', href: '/news', icon: Newspaper, active: pathname?.startsWith('/news') },
     { name: 'Board', href: '/board', icon: Kanban, active: pathname?.startsWith('/board') },
     { name: 'Teams', href: '/teams', icon: Users, active: pathname?.startsWith('/teams') },
+    { name: 'AI', href: '/ai', icon: Sparkle, active: pathname?.startsWith('/ai') || pathname?.startsWith('/modules') },
     { name: 'Network', href: '/marketing', icon: ShareNetwork, active: pathname?.startsWith('/marketing') },
   ];
 
