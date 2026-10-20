@@ -90,6 +90,15 @@ li[data-type="taskItem"][data-checked="true"] > div {
   animation: pp-shimmer 1.4s linear infinite;
 }
 
+/* Auth card: CSS (not JS) so controls always finish appearing even if the main thread is busy. */
+@keyframes pp-card-in { from { opacity: 0; transform: translateY(24px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes pp-stagger-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pp-swap-in { from { opacity: 0; transform: translateY(10px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.pp-card-in { animation: pp-card-in 0.6s cubic-bezier(0.215, 0.61, 0.355, 1) both; }
+.pp-stagger-in { animation: pp-stagger-in 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both; animation-delay: calc(150ms + var(--i, 0) * 50ms); }
+.pp-swap-in { animation: pp-swap-in 0.4s cubic-bezier(0.215, 0.61, 0.355, 1) both; }
+
 @media (prefers-reduced-motion: reduce) {
-  .pp-pop, .pp-fade, .pp-rise, .pp-grow, .pp-float-a, .pp-float-b, .pp-float-c, .pp-shimmer, .pp-caret { animation: none !important; }
+  .pp-pop, .pp-fade, .pp-rise, .pp-grow, .pp-float-a, .pp-float-b, .pp-float-c, .pp-shimmer, .pp-caret,
+  .pp-card-in, .pp-stagger-in, .pp-swap-in { animation: none !important; }
 }

@@ -1,10 +1,7 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import gsap from "gsap";
+import { useEffect, useState, type CSSProperties } from "react";
 import { PatchGrid } from "./PatchGrid";
-
-const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import { auth } from "@/lib/firebase";
 import {
   signInWithEmailAndPassword,
@@ -77,29 +74,11 @@ export function Login({
   const [loading, setLoading] = useState<"email" | "google" | null>(null);
 
   const isLogin = mode === "signin";
-  const cardRef = useRef<HTMLDivElement>(null);
-  const formRef = useRef<HTMLDivElement>(null);
-  const firstRender = useRef(true);
-
-  // Entrance: card lifts in, form rows stagger up.
-  useIsoLayoutEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ctx = gsap.context(() => {
-      gsap.from(cardRef.current, { y: 24, scale: 0.97, opacity: 0, duration: 0.6, ease: "power3.out" });
-      gsap.from("[data-stagger]", { y: 14, opacity: 0, duration: 0.5, ease: "power3.out", stagger: 0.05, delay: 0.15 });
-    }, cardRef);
-    return () => ctx.revert();
-  }, []);
-
-  // Mode switch: heading + primary button re-enter.
-  useEffect(() => {
-    if (firstRender.current) { firstRender.current = false; return; }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ctx = gsap.context(() => {
-      gsap.fromTo("[data-swap]", { y: 10, opacity: 0, filter: "blur(4px)" }, { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.4, ease: "power3.out", stagger: 0.05 });
-    }, formRef);
-    return () => ctx.revert();
-  }, [mode]);
+  // Motion is CSS (globals.css) rather than GSAP: a JS tween leaves `opacity: 0` inline until
+  // it ticks, so a busy main thread could hide the submit button. CSS animations always finish.
+  const [switched, setSwitched] = useState(false);
+  const stagger = (i: number) => ({ "--i": i }) as CSSProperties;
+  const swap = switched ? "pp-swap-in" : "";
 
   useEffect(() => {
     if (!onClose) return;
@@ -109,6 +88,7 @@ export function Login({
   }, [onClose]);
 
   const switchMode = (next: Mode) => {
+    if (next !== mode) setSwitched(true);
     setMode(next);
     setError("");
     setNotice("");
@@ -166,10 +146,10 @@ export function Login({
     "flex-1 bg-transparent text-[14px] text-white placeholder:text-neutral-600 outline-none";
 
   return (
-    <div ref={cardRef} className="relative w-full max-w-[880px] grid md:grid-cols-[1fr_1.05fr] rounded-[22px] overflow-hidden bg-[#111114] border border-white/[0.09] shadow-[0_30px_120px_rgba(0,0,0,0.75)]">
+    <div className="pp-card-in relative w-full max-w-[880px] grid md:grid-cols-[1fr_1.05fr] rounded-[22px] overflow-hidden bg-[#111114] border border-white/[0.09] shadow-[0_30px_120px_rgba(0,0,0,0.75)]">
       <PatchGrid />
 
-      <div ref={formRef} className="relative px-6 py-8 sm:px-10 sm:py-10">
+      <div className="relative px-6 py-8 sm:px-10 sm:py-10">
         {onClose && (
           <button
             onClick={onClose}
@@ -185,15 +165,17 @@ export function Login({
           <Logo size={20} alt="PatchPlan" />
         </div>
 
-        <h2 data-stagger data-swap className="text-[26px] font-semibold tracking-tight text-white">
-          {isLogin ? "Welcome back" : "Create your studio"}
-        </h2>
-        <p data-stagger data-swap className="mt-1 text-[14px] text-neutral-500">
-          {isLogin ? "Sign in to your workspace." : "Set up a workspace in under a minute."}
-        </p>
+        <div className="pp-stagger-in" style={stagger(0)}>
+          <h2 key={`h-${mode}`} className={`${swap} text-[26px] font-semibold tracking-tight text-white`}>
+            {isLogin ? "Welcome back" : "Create your studio"}
+          </h2>
+          <p key={`p-${mode}`} className={`${swap} mt-1 text-[14px] text-neutral-500`} style={{ animationDelay: "50ms" }}>
+            {isLogin ? "Sign in to your workspace." : "Set up a workspace in under a minute."}
+          </p>
+        </div>
 
         {/* Segmented toggle */}
-        <div data-stagger className="mt-6 relative grid grid-cols-2 p-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[13px]">
+        <div style={stagger(1)} className="pp-stagger-in mt-6 relative grid grid-cols-2 p-1 rounded-full bg-white/[0.04] border border-white/[0.06] text-[13px]">
           <span
             className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-white/[0.1] transition-transform duration-300 ease-out ${
               isLogin ? "translate-x-1" : "translate-x-[calc(100%+4px)]"
@@ -218,23 +200,23 @@ export function Login({
         {/* Google */}
         <button
           type="button"
-          data-stagger
+          style={stagger(2)}
           onClick={handleGoogle}
           disabled={loading !== null}
-          className="mt-5 w-full h-11 rounded-xl bg-white/[0.04] border border-white/[0.09] hover:bg-white/[0.07] hover:border-white/[0.16] text-[14px] font-medium text-white flex items-center justify-center gap-2.5 transition-colors disabled:opacity-50"
+          className="pp-stagger-in mt-5 w-full h-11 rounded-xl bg-white/[0.04] border border-white/[0.09] hover:bg-white/[0.07] hover:border-white/[0.16] text-[14px] font-medium text-white flex items-center justify-center gap-2.5 transition-colors disabled:opacity-50"
         >
           {loading === "google" ? <CircleNotch size={16} className="animate-spin" /> : <GoogleMark />}
           Continue with Google
         </button>
 
-        <div data-stagger className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-neutral-600">
+        <div style={stagger(3)} className="pp-stagger-in my-5 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-neutral-600">
           <span className="h-px flex-1 bg-white/[0.07]" />
           or
           <span className="h-px flex-1 bg-white/[0.07]" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
-          <label data-stagger className={inputWrap}>
+          <label style={stagger(4)} className={`pp-stagger-in ${inputWrap}`}>
             <EnvelopeSimple size={16} className="text-neutral-500 group-focus-within:text-neutral-300 transition-colors" />
             <input
               type="email"
@@ -247,7 +229,7 @@ export function Login({
             />
           </label>
 
-          <label data-stagger className={inputWrap}>
+          <label style={stagger(5)} className={`pp-stagger-in ${inputWrap}`}>
             <LockSimple size={16} className="text-neutral-500 group-focus-within:text-neutral-300 transition-colors" />
             <input
               type={showPassword ? "text" : "password"}
@@ -294,23 +276,22 @@ export function Login({
 
           <button
             type="submit"
-            data-stagger
-            data-swap
+            style={stagger(6)}
             disabled={loading !== null}
-            className="group w-full h-11 rounded-xl bg-white text-[#0a0a0a] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-neutral-200 active:scale-[0.99] transition-all disabled:opacity-60"
+            className="pp-stagger-in group w-full h-11 rounded-xl bg-white text-[#0a0a0a] text-[14px] font-semibold flex items-center justify-center gap-2 hover:bg-neutral-200 active:scale-[0.99] transition-all disabled:opacity-60"
           >
             {loading === "email" ? (
               <CircleNotch size={16} className="animate-spin" />
             ) : (
-              <>
+              <span key={`b-${mode}`} className={`${swap} flex items-center gap-2`} style={{ animationDelay: "100ms" }}>
                 {isLogin ? "Sign in" : "Create account"}
                 <ArrowRight size={14} weight="bold" className="transition-transform group-hover:translate-x-0.5" />
-              </>
+              </span>
             )}
           </button>
         </form>
 
-        <p data-stagger className="mt-6 text-center text-[12px] text-neutral-600">
+        <p style={stagger(7)} className="pp-stagger-in mt-6 text-center text-[12px] text-neutral-600">
           {isLogin ? "New to PatchPlan? " : "Already have an account? "}
           <button
             type="button"
