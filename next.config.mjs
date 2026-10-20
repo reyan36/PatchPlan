@@ -3,6 +3,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+  experimental: {
+    // Tree-shake icon barrels so each page only ships the icons it uses.
+    optimizePackageImports: ["@phosphor-icons/react", "lucide-react"],
+  },
   images: {
     remotePatterns: [
       {

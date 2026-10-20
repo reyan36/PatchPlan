@@ -27,6 +27,7 @@ import { NewsSettingsModal } from "@/components/ui/NewsSettingsModal";
 import { ShareModal } from "@/components/ui/ShareModal";
 import { useRouter } from "next/navigation";
 import { readingStats } from "@/lib/newsTheme";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type Article = {
   id: string;
@@ -181,7 +182,7 @@ export default function NewsPage() {
   }, [articles, tab, search]);
 
   if (authLoading || familyLoading || (loading && user)) {
-    return <div className="p-8 text-sm text-zinc-500 animate-pulse">Loading news…</div>;
+    return <PageLoader label="Loading news" />;
   }
   if (!user) return <Login />;
 

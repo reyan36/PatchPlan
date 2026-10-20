@@ -84,7 +84,7 @@ export function PublicSettingsModal({ isOpen, onClose, scopeId }: PublicSettings
           <h3 className="font-semibold text-foreground">Footer Links</h3>
           <div>
             <label className="block text-sm font-medium mb-1">Website URL</label>
-            <input type="text" value={data.websiteUrl || ""} onChange={e => setData({...data, websiteUrl: e.target.value})} placeholder="e.g. ramjetstudios.com" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
+            <input type="text" value={data.websiteUrl || ""} onChange={e => setData({...data, websiteUrl: e.target.value})} placeholder="e.g. yourstudio.com" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Discord URL</label>
@@ -97,11 +97,11 @@ export function PublicSettingsModal({ isOpen, onClose, scopeId }: PublicSettings
           <h3 className="font-semibold text-foreground">Page Text</h3>
           <div>
             <label className="block text-sm font-medium mb-1">Custom News Heading</label>
-            <input type="text" value={data.newsHeading || ""} onChange={e => setData({...data, newsHeading: e.target.value})} placeholder="e.g. VEIN News" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
+            <input type="text" value={data.newsHeading || ""} onChange={e => setData({...data, newsHeading: e.target.value})} placeholder="e.g. Your Game News" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Custom Roadmap Heading</label>
-            <input type="text" value={data.roadmapHeading || ""} onChange={e => setData({...data, roadmapHeading: e.target.value})} placeholder="e.g. BreakWood Roadmap" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
+            <input type="text" value={data.roadmapHeading || ""} onChange={e => setData({...data, roadmapHeading: e.target.value})} placeholder="e.g. Your Game Roadmap" className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Roadmap Description</label>

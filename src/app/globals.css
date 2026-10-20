@@ -76,6 +76,8 @@ li[data-type="taskItem"][data-checked="true"] > div {
 
 .pp-pop { animation: pp-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .pp-fade { animation: pp-fade 0.25s ease-out both; }
+@keyframes pp-progress { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+.pp-progress { animation: pp-progress 1s ease-in-out infinite; }
 .pp-rise { animation: pp-rise 0.35s ease-out both; }
 .pp-grow { transform-origin: left; animation: pp-grow 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .pp-caret { animation: pp-blink 1s steps(1) infinite; }

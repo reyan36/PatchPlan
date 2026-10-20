@@ -167,8 +167,8 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
   const handleDownloadSample = () => {
     const sampleHeaders = "Name,Platform,Tier,Niche,Contact,Status,Notes\r\n";
     const sampleRows = [
-      'Wanderbots,YouTube,100K–500K,Roguelike,wanderbots@creator.com,Contacted,"Interested in demo key"',
-      'CohhCarnage,Twitch,500K+,RPG,cohh@agency.tv,In Talks,"Embargo on launch day"',
+      'Roguelike Channel,YouTube,100K–500K,Roguelike,creator@example.com,Contacted,"Interested in demo key"',
+      'RPG Streamer,Twitch,500K+,RPG,streamer@example.com,In Talks,"Embargo on launch day"',
       'PC Gamer,Press,500K+,Co-op,press@pcgamer.com,New,"Send launch press release"'
     ].join("\r\n");
 

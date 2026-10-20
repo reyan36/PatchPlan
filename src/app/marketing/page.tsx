@@ -38,6 +38,7 @@ import {
   writeBatch
 } from "firebase/firestore";
 import { CsvImportModal, ParsedContact } from "@/components/network/CsvImportModal";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type Contact = {
   id: string;
@@ -225,7 +226,7 @@ export default function MarketingPage() {
   };
 
   if (authLoading || familyLoading) {
-    return <div className="p-8 text-muted-foreground animate-pulse">Loading Studio Network...</div>;
+    return <PageLoader label="Loading network" />;
   }
   
   if (!user) return <Login />;

@@ -86,14 +86,26 @@ export function resolveTheme(theme?: string): ThemeTokens {
 /** CSS variables applied on the public page root so every element can use var(--pp-*). */
 export function themeVars(theme?: string, accent?: string): CSSProperties {
   const t = resolveTheme(theme);
+  const a = accent || t.defaultAccent;
   return {
     ["--pp-bg" as any]: t.bg,
     ["--pp-surface" as any]: t.surface,
     ["--pp-fg" as any]: t.fg,
     ["--pp-muted" as any]: t.muted,
     ["--pp-border" as any]: t.border,
-    ["--pp-accent" as any]: accent || t.defaultAccent,
+    ["--pp-accent" as any]: a,
+    ["--pp-on-accent" as any]: onAccent(a),
   };
+}
+
+/** Readable text colour on top of the accent (dark on bright accents, white on deep ones). */
+function onAccent(hex: string) {
+  const h = hex.replace("#", "");
+  const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h.slice(0, 6);
+  const n = parseInt(full, 16);
+  if (Number.isNaN(n)) return "#ffffff";
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum > 0.6 ? "#0a0a0a" : "#ffffff";
 }
 
 export function normalizeUrl(url?: string): string {

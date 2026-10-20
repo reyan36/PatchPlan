@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MagnifyingGlass, DiscordLogo, XLogo, Globe, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { cache } from "react";
+import { SubscribeForm } from "@/components/email/SubscribeForm";
 import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate } from "@/lib/newsTheme";
 
 // Always serve fresh data when articles or settings are updated
@@ -357,6 +358,10 @@ export default async function PublicNewsPage({ params, searchParams }: { params:
           </div>
         )}
       </main>
+
+      <section className="max-w-6xl w-full mx-auto px-6 pb-16">
+        <SubscribeForm scopeId={params.familyId} source="news" studioName={familyName} className="bg-[var(--pp-surface)] max-w-2xl mx-auto" />
+      </section>
 
       <footer className="border-t border-[var(--pp-border)]">
         <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--pp-muted)]">

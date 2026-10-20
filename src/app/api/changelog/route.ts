@@ -1,60 +1,43 @@
 import { NextResponse } from "next/server";
-import { ChangelogEntry, enhanceCommit } from "@/lib/changelog";
-import changelogData from "@/data/changelog.json";
-import cp from "child_process";
+import { ChangelogEntry, formatRelativeTime } from "@/lib/changelog";
+import { adminDb } from "@/lib/email/server";
 
-export const dynamic = "force-dynamic";
+// Entries live in Firestore (synced from git by scripts/changelog/sync.mjs at build time).
+// Cached for 5 minutes so the public page doesn't read Firestore on every visit.
+export const revalidate = 300;
 
 export async function GET() {
   try {
-    // Attempt dynamic git extraction so development reflects fresh commits instantly
-    const cmd = 'git log --pretty=format:%h___%H___%s___%b___%an___%ad___%at===COMMIT_END=== --date=short';
-    const output = cp.execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 3000 });
+    const snap = await adminDb().collection("changelog").orderBy("seq", "desc").limit(200).get();
+    const entries: ChangelogEntry[] = snap.docs.map((d, i) => {
+      const e = d.data();
+      return {
+        version: e.version,
+        isLatest: i === 0,
+        hash: e.hash || "",
+        fullHash: e.fullHash || d.id,
+        date: e.date || "",
+        relativeTime: formatRelativeTime(e.timestamp || 0),
+        timestamp: e.timestamp || 0,
+        rawCommit: e.rawCommit || "",
+        rawBody: e.rawBody || "",
+        author: e.author || "",
+        title: e.title,
+        summary: e.summary || "",
+        type: e.type || "improvement",
+        badge: e.badge || "Update",
+        highlights: Array.isArray(e.highlights) ? e.highlights : [],
+      };
+    });
 
-    const rawBlocks = output.split('===COMMIT_END===').map(b => b.trim()).filter(Boolean);
-    if (rawBlocks.length > 0) {
-      const rawCommits = rawBlocks.map(block => {
-        const parts = block.split('___');
-        return {
-          hash: (parts[0] || '').trim(),
-          fullHash: (parts[1] || '').trim(),
-          subject: (parts[2] || '').trim(),
-          body: (parts[3] || '').trim(),
-          author: (parts[4] || '').trim(),
-          date: (parts[5] || '').trim(),
-          timestamp: parseInt((parts[6] || '0').trim(), 10)
-        };
-      });
-
-      const reversed = [...rawCommits].reverse();
-      const total = reversed.length;
-
-      const entries: ChangelogEntry[] = reversed.map((raw, idx) => {
-        const isLatest = idx === total - 1;
-        return enhanceCommit(raw, idx, isLatest);
-      });
-
-      const displayList = entries.reverse();
-      const latest = displayList[0];
-
-      return NextResponse.json({
-        success: true,
-        currentVersion: latest?.version || "v0.1.0",
-        totalReleases: displayList.length,
-        entries: displayList
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      currentVersion: entries[0]?.version || "v0.1.0",
+      totalReleases: entries.length,
+      entries,
+    });
   } catch (err) {
-    // Fall back to pre-built changelog.json (e.g. serverless hosting environments)
+    console.error("[changelog]", err instanceof Error ? err.message : err);
+    return NextResponse.json({ success: false, currentVersion: "", totalReleases: 0, entries: [] }, { status: 503 });
   }
-
-  const staticEntries = changelogData as ChangelogEntry[];
-  const latest = staticEntries[0];
-
-  return NextResponse.json({
-    success: true,
-    currentVersion: latest?.version || "v0.1.0",
-    totalReleases: staticEntries.length,
-    entries: staticEntries
-  });
 }

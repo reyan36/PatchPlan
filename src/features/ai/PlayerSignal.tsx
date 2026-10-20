@@ -199,11 +199,11 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
           <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-white/[0.06]">
             <label className="space-y-1">
               <span className="text-[11px] text-zinc-500">Game name (for Steam / web search)</span>
-              <input className={inputClass} value={sources.gameName} onChange={(e) => setSources({ ...sources, gameName: e.target.value })} placeholder="Ramjet" />
+              <input className={inputClass} value={sources.gameName} onChange={(e) => setSources({ ...sources, gameName: e.target.value })} placeholder="Your game" />
             </label>
             <label className="space-y-1">
               <span className="text-[11px] text-zinc-500">Subreddit (optional)</span>
-              <input className={inputClass} value={sources.subreddit} onChange={(e) => setSources({ ...sources, subreddit: e.target.value })} placeholder="r/ramjetgame" />
+              <input className={inputClass} value={sources.subreddit} onChange={(e) => setSources({ ...sources, subreddit: e.target.value })} placeholder="r/yourgame" />
             </label>
             <label className="space-y-1">
               <span className="text-[11px] text-zinc-500">Discord feedback channel ID</span>
@@ -211,7 +211,7 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
             </label>
             <label className="space-y-1 sm:col-span-3">
               <span className="text-[11px] text-zinc-500">Or paste feedback, one report per line (&quot;Name: message&quot; credits the player)</span>
-              <textarea className={`${inputClass} min-h-[72px] font-mono text-xs`} value={manual} onChange={(e) => setManual(e.target.value)} placeholder={"Kiro: game softlocks if you exit the ladder mid-climb\nsableX: parry window feels way too tight on boss 2"} />
+              <textarea className={`${inputClass} min-h-[72px] font-mono text-xs`} value={manual} onChange={(e) => setManual(e.target.value)} placeholder={"Player1: game softlocks if you exit the ladder mid-climb\nPlayer2: parry window feels way too tight on boss 2"} />
             </label>
             <div className="sm:col-span-3 flex items-center justify-between gap-3">
               <p className="text-[11px] text-zinc-600">

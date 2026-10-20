@@ -10,6 +10,7 @@ import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
 import { ShareModal } from "@/components/ui/ShareModal";
 import { RoadmapSettingsModal } from "@/components/ui/RoadmapSettingsModal";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type RoadmapItem = {
   id: string;
@@ -169,7 +170,7 @@ export default function RoadmapPage() {
     }
   };
 
-  if (authLoading || familyLoading || loading || !configLoaded) return <div className="p-8 text-muted-foreground animate-pulse">Loading Roadmap...</div>;
+  if (authLoading || familyLoading || loading || !configLoaded) return <PageLoader variant="columns" label="Loading roadmap" />;
   if (!user) return <Login />;
   
   const scopeId = activeFamily ? activeFamily.id : user.uid;

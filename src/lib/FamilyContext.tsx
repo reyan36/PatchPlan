@@ -50,6 +50,8 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Signing in: wait for the profile so pages don't briefly load the personal workspace.
+    setLoading(true);
     const profileRef = doc(db, "user_profiles", user.uid);
     const unsubProfile = onSnapshot(profileRef, (snap) => {
       if (snap.exists()) {

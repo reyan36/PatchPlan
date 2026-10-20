@@ -74,7 +74,7 @@ export function RoadmapSettingsModal({ isOpen, onClose, scopeId }: RoadmapSettin
               type="text" 
               value={data.roadmapStudioName || ""} 
               onChange={e => setData({...data, roadmapStudioName: e.target.value})}
-              placeholder="e.g. Ramjet Studios"
+              placeholder="e.g. Your Studio"
               className="w-full bg-background border border-border rounded-md pl-4 pr-10 py-2 focus:border-primary focus:outline-none appearance-none" 
             />
           </div>
@@ -95,7 +95,7 @@ export function RoadmapSettingsModal({ isOpen, onClose, scopeId }: RoadmapSettin
           <h3 className="font-semibold text-foreground">Footer Links</h3>
           <div>
             <label className="block text-sm font-medium mb-1">Website URL</label>
-            <input type="text" value={data.roadmapWebsiteUrl || ""} onChange={e => setData({...data, roadmapWebsiteUrl: e.target.value})} placeholder="e.g. ramjetstudios.com" className="w-full bg-background border border-border rounded-md pl-4 pr-10 py-2 focus:border-primary focus:outline-none appearance-none" />
+            <input type="text" value={data.roadmapWebsiteUrl || ""} onChange={e => setData({...data, roadmapWebsiteUrl: e.target.value})} placeholder="e.g. yourstudio.com" className="w-full bg-background border border-border rounded-md pl-4 pr-10 py-2 focus:border-primary focus:outline-none appearance-none" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Discord URL</label>
@@ -108,7 +108,7 @@ export function RoadmapSettingsModal({ isOpen, onClose, scopeId }: RoadmapSettin
           <h3 className="font-semibold text-foreground">Page Text</h3>
           <div>
             <label className="block text-sm font-medium mb-1">Custom Roadmap Heading</label>
-            <input type="text" value={data.roadmapHeading || ""} onChange={e => setData({...data, roadmapHeading: e.target.value})} placeholder="e.g. BreakWood Roadmap" className="w-full bg-background border border-border rounded-md pl-4 pr-10 py-2 focus:border-primary focus:outline-none appearance-none" />
+            <input type="text" value={data.roadmapHeading || ""} onChange={e => setData({...data, roadmapHeading: e.target.value})} placeholder="e.g. Your Game Roadmap" className="w-full bg-background border border-border rounded-md pl-4 pr-10 py-2 focus:border-primary focus:outline-none appearance-none" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Roadmap Description</label>

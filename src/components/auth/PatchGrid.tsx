@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-import { SquaresFour } from "@phosphor-icons/react";
 
+import { Logo } from "@/components/ui/Logo";
 /**
  * Animated pixel grid for the auth panel.
  * Colour waves sweep across the grid, then pixel-art sprites assemble,
@@ -284,7 +284,7 @@ export function PatchGrid() {
 
       <div className="relative flex items-center gap-2.5 pointer-events-none">
         <div className="w-7 h-7 rounded-lg bg-white/[0.08] backdrop-blur flex items-center justify-center text-white">
-          <SquaresFour size={15} weight="fill" />
+          <Logo size={15} />
         </div>
         <span className="font-semibold text-[13px] tracking-tight text-white">patchplan</span>
       </div>

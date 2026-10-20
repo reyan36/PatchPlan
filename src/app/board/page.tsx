@@ -224,7 +224,11 @@ export default function BoardPage() {
       setTasks(tasks.map(t => t.id === id ? { ...t, column: targetColumn } : t));
       
       try {
-        await updateDoc(doc(db, "tasks", id), { column: targetColumn });
+        // completedAt feeds the automatic email digests.
+        await updateDoc(doc(db, "tasks", id), {
+          column: targetColumn,
+          ...(targetColumn === "Done" && !wasDone ? { completedAt: serverTimestamp() } : {}),
+        });
         if (targetColumn === "Done" && !wasDone) {
           notifyTaskCompleted(activeFamily ? activeFamily.id : user.uid, task.title, user?.displayName || user?.email?.split('@')[0] || "Someone");
         }

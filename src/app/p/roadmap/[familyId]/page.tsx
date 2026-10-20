@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SubscribeForm } from "@/components/email/SubscribeForm";
 import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
 import { Globe, MagnifyingGlass } from "@phosphor-icons/react";
@@ -217,6 +218,10 @@ export default function PublicRoadmapPage({ params }: { params: { familyId: stri
           })}
         </div>
       </div>
+
+      <section className="px-6 pb-16 flex justify-center">
+        <SubscribeForm scopeId={params.familyId} source="roadmap" studioName={familyName} className="w-full max-w-2xl bg-white/[0.03]" />
+      </section>
 
       <footer className="border-t border-white/5 py-12 px-6 shrink-0 text-center text-sm flex flex-col items-center gap-6 opacity-60 bg-black/20">
         <div className="flex items-center justify-center gap-6">

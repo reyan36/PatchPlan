@@ -281,7 +281,7 @@ export function NewsSettingsModal({ isOpen, onClose, scopeId }: NewsSettingsModa
           <Section title="Branding">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Studio name">
-                <input className={inputCls} value={data.newsStudioName} onChange={e => set("newsStudioName", e.target.value)} placeholder="Ramjet Studios" />
+                <input className={inputCls} value={data.newsStudioName} onChange={e => set("newsStudioName", e.target.value)} placeholder="Your Studio" />
               </Field>
               <Field label="Page heading">
                 <input className={inputCls} value={data.newsHeading} onChange={e => set("newsHeading", e.target.value)} placeholder="Studio News" />

@@ -19,8 +19,9 @@ const TYPE_META: Record<SearchDocType, { label: string; icon: typeof Kanban }> =
 
 const EXAMPLES = ["What's left before the boss fight is done?", "Which streamers cover roguelikes?", "Did we already write about the parry changes?"];
 
-export function SearchEverything({ user, familyId, enabled }: { user: User; familyId: string | null; enabled: boolean }) {
-  const [q, setQ] = useState("");
+export function SearchEverything({ user, familyId, enabled, initialQuery = "" }: { user: User; familyId: string | null; enabled: boolean; initialQuery?: string }) {
+  const [q, setQ] = useState(initialQuery);
+  const autoRan = useRef(false);
   const [corpus, setCorpus] = useState<SearchDoc[] | null>(null);
   const [result, setResult] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,14 @@ export function SearchEverything({ user, familyId, enabled }: { user: User; fami
     loadSearchCorpus(user, familyId).then(setCorpus).catch(() => setCorpus([]));
     inputRef.current?.focus();
   }, [user, familyId]);
+
+  // Questions asked from the dashboard run as soon as the workspace is indexed.
+  useEffect(() => {
+    if (initialQuery && corpus && enabled && !autoRan.current) {
+      autoRan.current = true;
+      run(initialQuery);
+    }
+  }, [corpus, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run = async (question = q) => {
     if (!question.trim()) return;

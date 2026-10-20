@@ -1,297 +1,441 @@
 "use client";
 
-import { useState } from "react";
-import { useAuth } from "@/lib/AuthContext";
-import { Login } from "@/components/auth/Login";
-import { IntegrationsTab } from "@/features/integrations/IntegrationsTab";
-import { UserCircle, Palette, BellSimple, ShieldCheck, PlugsConnected } from "@phosphor-icons/react";
-import { Skeleton } from "@/components/ui/Skeleton";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { updateProfile, deleteUser } from "firebase/auth";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import {
+  UserCircle, Buildings, PlugsConnected, EnvelopeSimple, Sparkle, BellSimple, Lifebuoy, ShieldCheck, Copy, Check, ArrowRight, CheckCircle, Circle, Play,
+} from "@phosphor-icons/react";
+import { useAuth } from "@/lib/AuthContext";
+import { useFamily } from "@/lib/FamilyContext";
+import { db } from "@/lib/firebase";
+import { Login } from "@/components/auth/Login";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
+import { IntegrationsTab } from "@/features/integrations/IntegrationsTab";
+import { EmailSettingsForm } from "@/features/email/EmailSetup";
+import { DomainCard } from "@/features/email/DomainCard";
+import { getEmailStatus, type EmailStatus } from "@/lib/email/client";
+import { getAIStatus, type AIStatus } from "@/lib/ai/client";
+import { DEFAULT_SETTINGS, type EmailSettings } from "@/lib/email/types";
+import type { DiscordEvent } from "@/lib/discord";
+import { FEATURES, TOUR_SEEN_KEY } from "@/features/tour/ProductTour";
+import { Button, Panel, inputClass } from "@/features/ai/ui";
 
-type Tab = "profile" | "appearance" | "notifications" | "security" | "integrations";
+const TABS = [
+  { key: "profile", label: "Profile", icon: UserCircle },
+  { key: "workspace", label: "Workspace", icon: Buildings },
+  { key: "notifications", label: "Notifications", icon: BellSimple },
+  { key: "integrations", label: "Integrations", icon: PlugsConnected },
+  { key: "email", label: "Email", icon: EnvelopeSimple },
+  { key: "ai", label: "AI", icon: Sparkle },
+  { key: "help", label: "Help & tour", icon: Lifebuoy },
+  { key: "account", label: "Account", icon: ShieldCheck },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
 
 export default function SettingsPage() {
-  const { user, loading } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
-  
-  // Profile State
-  const [displayName, setDisplayName] = useState(user?.displayName || "");
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const { user, loading, logout } = useAuth();
+  const { activeFamily, loading: familyLoading } = useFamily();
+  const [tab, setTab] = useState<TabKey>("profile");
 
-  // Notification State
-  const [sysNotif, setSysNotif] = useState(true);
-  const [collabNotif, setCollabNotif] = useState(true);
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (TABS.some((x) => x.key === t)) setTab(t as TabKey);
+  }, []);
 
-  // Security State
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  if (loading) {
+  if (loading || familyLoading) {
     return (
-      <div className="max-w-4xl mx-auto space-y-8">
-        <header className="py-4">
-          <Skeleton className="h-10 w-48 mb-2" />
-          <Skeleton className="h-4 w-96" />
-        </header>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-1 space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-          <div className="md:col-span-3 space-y-6">
-            <Skeleton className="h-64 w-full" />
-            <Skeleton className="h-48 w-full" />
-          </div>
+      <div className="max-w-5xl mx-auto space-y-8">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid md:grid-cols-[200px_1fr] gap-8">
+          <Skeleton className="h-72 w-full" />
+          <Skeleton className="h-72 w-full" />
         </div>
       </div>
     );
   }
+  if (!user) return <Login />;
 
-  if (!user) {
-    return <Login />;
-  }
-
-  const handleUpdateProfile = async () => {
-    setSaving(true);
-    setMessage("");
-    try {
-      await updateProfile(user, { displayName });
-      setMessage("Profile updated successfully!");
-    } catch (error) {
-      setMessage("Failed to update profile.");
-    } finally {
-      setSaving(false);
-      setTimeout(() => setMessage(""), 3000);
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    try {
-      await deleteUser(user);
-      // User will be auto-redirected by AuthContext
-    } catch (error: any) {
-      console.error(error);
-      if (error.code === 'auth/requires-recent-login') {
-        alert("For security reasons, please log out and log back in before deleting your account.");
-      } else {
-        alert("Failed to delete account. Try again later.");
-      }
-      setShowDeleteModal(false);
-    }
+  const scopeId = activeFamily ? activeFamily.id : user.uid;
+  const select = (t: TabKey) => {
+    setTab(t);
+    window.history.replaceState(null, "", `/settings?tab=${t}`);
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <header className="py-4">
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and studio preferences.</p>
+    <div className="max-w-5xl mx-auto space-y-6">
+      <header>
+        <h1 className="text-3xl font-bold tracking-tight text-white">Settings</h1>
+        <p className="text-sm text-zinc-500 mt-1">
+          {activeFamily ? <>Account and <span className="text-zinc-300">{activeFamily.name}</span> workspace settings.</> : "Account and personal workspace settings."}
+        </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        
-        {/* Settings Sidebar */}
-        <div className="md:col-span-1 flex flex-col gap-1">
-          <button 
-            onClick={() => setActiveTab("profile")}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
-              activeTab === "profile" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            }`}
-          >
-            <UserCircle size={18} weight={activeTab === "profile" ? "duotone" : "regular"} /> Profile
-          </button>
-          <button 
-            onClick={() => setActiveTab("appearance")}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
-              activeTab === "appearance" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            }`}
-          >
-            <Palette size={18} weight={activeTab === "appearance" ? "duotone" : "regular"} /> Appearance
-          </button>
-          <button 
-            onClick={() => setActiveTab("notifications")}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
-              activeTab === "notifications" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            }`}
-          >
-            <BellSimple size={18} weight={activeTab === "notifications" ? "duotone" : "regular"} /> Notifications
-          </button>
-          <button 
-            onClick={() => setActiveTab("security")}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
-              activeTab === "security" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            }`}
-          >
-            <ShieldCheck size={18} weight={activeTab === "security" ? "duotone" : "regular"} /> Security
-          </button>
-          <button 
-            onClick={() => setActiveTab("integrations")}
-            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-md transition-all ${
-              activeTab === "integrations" ? "bg-muted text-foreground font-semibold shadow-xs" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-            }`}
-          >
-            <PlugsConnected size={18} weight={activeTab === "integrations" ? "duotone" : "regular"} /> Integrations
-          </button>
-        </div>
+      <div className="grid md:grid-cols-[200px_minmax(0,1fr)] gap-6 md:gap-8 items-start">
+        <nav className="flex md:flex-col gap-1 overflow-x-auto md:sticky md:top-20 -mx-1 px-1 pb-1 md:pb-0">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => select(t.key)}
+              className={`shrink-0 flex items-center gap-2.5 px-3 py-2 text-sm rounded-md transition-colors text-left ${
+                tab === t.key ? "bg-white/[0.08] text-white font-medium" : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.03]"
+              }`}
+            >
+              <t.icon size={17} weight={tab === t.key ? "duotone" : "regular"} />
+              {t.label}
+            </button>
+          ))}
+        </nav>
 
-        {/* Settings Content */}
-        <div className="md:col-span-3 space-y-6">
-          
-          {/* PROFILE TAB */}
-          {activeTab === "profile" && (
-            <section className="bg-card border border-border rounded-lg p-6 animate-in fade-in duration-300">
-              <h2 className="text-lg font-semibold mb-4">Profile Information</h2>
-              <div className="space-y-4 max-w-md">
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-muted-foreground">Email Address</label>
-                  <input 
-                    type="email" 
-                    disabled 
-                    value={user.email || ""} 
-                    className="w-full bg-background border border-border rounded-md px-4 py-2 text-muted-foreground opacity-70 cursor-not-allowed"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Your email is tied to your Firebase account.</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-muted-foreground">Display Name</label>
-                  <input 
-                    type="text" 
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="Studio Developer" 
-                    className="w-full bg-background border border-border rounded-md px-4 py-2 focus:outline-none focus:border-muted-foreground"
-                  />
-                </div>
-                <div className="flex items-center gap-4">
-                  <button 
-                    onClick={handleUpdateProfile}
-                    disabled={saving}
-                    className="bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save Changes"}
-                  </button>
-                  {message && <span className="text-sm font-medium text-primary">{message}</span>}
-                </div>
-              </div>
-            </section>
+        <div className="min-w-0 space-y-6">
+          {tab === "profile" && <ProfileSection />}
+          {tab === "workspace" && <WorkspaceSection />}
+          {tab === "notifications" && <NotificationsSection scopeId={scopeId} />}
+          {tab === "integrations" && (
+            <div className="space-y-6">
+              <IntegrationsTab />
+              <Section title="Player feedback sources" description="Discord channel, game name and subreddit used by Player Signal.">
+                <Link href="/ai?tab=signal" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">
+                  Manage in PatchPlan AI <ArrowRight size={13} />
+                </Link>
+              </Section>
+            </div>
           )}
-
-          {/* APPEARANCE TAB */}
-          {activeTab === "appearance" && (
-            <section className="bg-card border border-border rounded-lg p-6 animate-in fade-in duration-300">
-              <h2 className="text-lg font-semibold mb-4">Appearance</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-3 border-b border-border">
-                  <div>
-                    <h3 className="font-medium">Dark Mode</h3>
-                    <p className="text-sm text-muted-foreground">Patchplan defaults to a dark aesthetic designed for gamers.</p>
-                  </div>
-                  <div className="bg-primary px-3 py-1 rounded text-primary-foreground text-xs font-bold">Enabled</div>
-                </div>
-                <div className="flex items-center justify-between py-3">
-                  <div>
-                    <h3 className="font-medium">Light Mode</h3>
-                    <p className="text-sm text-muted-foreground">For those who prefer a brighter workspace.</p>
-                  </div>
-                  <div className="bg-muted px-3 py-1 rounded text-muted-foreground text-xs font-bold">Coming Soon</div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* NOTIFICATIONS TAB */}
-          {activeTab === "notifications" && (
-            <section className="bg-card border border-border rounded-lg p-6 animate-in fade-in duration-300">
-              <h2 className="text-lg font-semibold mb-4">Notification Preferences</h2>
-              <p className="text-sm text-muted-foreground mb-6">Choose what you want to be notified about via email.</p>
-              
-              <div className="space-y-4">
-                <label className="flex items-start justify-between cursor-pointer group">
-                  <div>
-                    <h3 className="font-medium group-hover:text-primary transition-colors">Patchplan Updates</h3>
-                    <p className="text-sm text-muted-foreground">Receive emails about new features and software updates.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={sysNotif} 
-                    onChange={(e) => setSysNotif(e.target.checked)}
-                    className="mt-1 w-4 h-4 accent-primary"
-                  />
-                </label>
-                
-                <div className="w-full h-px bg-border" />
-                
-                <label className="flex items-start justify-between cursor-pointer group">
-                  <div>
-                    <h3 className="font-medium group-hover:text-primary transition-colors">Collaborator Updates</h3>
-                    <p className="text-sm text-muted-foreground">Get notified when someone edits a workspace or joins your team.</p>
-                  </div>
-                  <input 
-                    type="checkbox" 
-                    checked={collabNotif} 
-                    onChange={(e) => setCollabNotif(e.target.checked)}
-                    className="mt-1 w-4 h-4 accent-primary"
-                  />
-                </label>
-              </div>
-            </section>
-          )}
-
-          {/* SECURITY TAB */}
-          {activeTab === "security" && (
-            <section className="bg-card border border-border rounded-lg p-6 animate-in fade-in duration-300">
-              <h2 className="text-lg font-semibold text-red-500 mb-4">Danger Zone</h2>
-              <div className="border border-red-500/20 bg-red-500/5 rounded-md p-4 flex flex-col items-start gap-4">
-                <div>
-                  <h3 className="font-medium text-red-400">Delete Account</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Permanently delete your account and remove all access to your studio data. This action is irreversible.
-                  </p>
-                </div>
-                <button 
-                  onClick={() => setShowDeleteModal(true)}
-                  className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600 transition-colors"
-                >
-                  Delete Account
-                </button>
-              </div>
-            </section>
-          )}
-
-          {/* INTEGRATIONS TAB */}
-          {activeTab === "integrations" && (
-            <IntegrationsTab />
-          )}
-
+          {tab === "email" && <EmailSection scopeId={scopeId} />}
+          {tab === "ai" && <AISection />}
+          {tab === "help" && <HelpSection />}
+          {tab === "account" && <AccountSection onSignOut={logout} />}
         </div>
       </div>
-
-      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Delete Account">
-        <p className="text-muted-foreground mb-6">
-          Are you absolutely sure you want to delete your account? This will permanently remove your login credentials.
-        </p>
-        <div className="flex justify-end gap-3 mt-6">
-          <button
-            type="button"
-            onClick={() => setShowDeleteModal(false)}
-            className="px-4 py-2 text-sm font-medium hover:text-muted-foreground transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleDeleteAccount}
-            className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600 transition-colors"
-          >
-            Yes, Delete Account
-          </button>
-        </div>
-      </Modal>
-
     </div>
   );
 }
 
+function Section({ title, description, children, danger }: { title: string; description?: string; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <Panel className={`p-5 sm:p-6 ${danger ? "border-red-500/20 bg-red-500/[0.03]" : ""}`}>
+      <h2 className={`text-base font-semibold ${danger ? "text-red-300" : "text-white"}`}>{title}</h2>
+      {description && <p className="text-sm text-zinc-500 mt-0.5">{description}</p>}
+      <div className="mt-5">{children}</div>
+    </Panel>
+  );
+}
 
+function ProfileSection() {
+  const { user } = useAuth();
+  const [name, setName] = useState(user?.displayName || "");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  if (!user) return null;
 
+  const save = async () => {
+    setSaving(true);
+    try {
+      await updateProfile(user, { displayName: name.trim() });
+      setMessage("Saved");
+    } catch {
+      setMessage("Couldn't save. Try again.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setMessage(""), 2500);
+    }
+  };
 
+  const initial = (name || user.email || "?").trim()[0]?.toUpperCase();
+  return (
+    <Section title="Profile" description="How you appear to teammates and on posts you write.">
+      <div className="flex items-center gap-4 mb-6">
+        {user.photoURL ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.photoURL} alt="" className="w-14 h-14 rounded-full border border-white/10" />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center text-xl font-semibold text-zinc-200">{initial}</div>
+        )}
+        <div>
+          <div className="text-sm text-white">{name || "No display name"}</div>
+          <div className="text-xs text-zinc-500">{user.email}</div>
+        </div>
+      </div>
+      <div className="space-y-4 max-w-md">
+        <label className="block space-y-1">
+          <span className="text-xs text-zinc-500">Display name</span>
+          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="Studio Developer" />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-xs text-zinc-500">Email</span>
+          <input className={`${inputClass} opacity-60`} value={user.email || ""} disabled />
+          <span className="text-[11px] text-zinc-600">Tied to your sign-in method.</span>
+        </label>
+        <div className="flex items-center gap-3">
+          <Button onClick={save} loading={saving} disabled={name.trim() === (user.displayName || "")}>Save changes</Button>
+          {message && <span className="text-xs text-emerald-400">{message}</span>}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function WorkspaceSection() {
+  const { user } = useAuth();
+  const { activeFamily } = useFamily();
+  const [copied, setCopied] = useState(false);
+
+  if (!activeFamily) {
+    return (
+      <Section title="Personal workspace" description="You're working on your own. Create or join a studio to collaborate.">
+        <Link href="/teams" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Go to Teams <ArrowRight size={13} /></Link>
+      </Section>
+    );
+  }
+
+  const me = activeFamily.members.find((m) => m.uid === user?.uid);
+  return (
+    <div className="space-y-6">
+      <Section title={activeFamily.name} description={`You're ${me?.role === "owner" ? "the owner" : "a member"} of this studio.`}>
+        <div className="space-y-5">
+          <div>
+            <div className="text-xs text-zinc-500 mb-1">Invite code</div>
+            <div className="flex items-center gap-2">
+              <code className="px-3 py-2 rounded-md bg-black/30 border border-white/10 text-lg tracking-[0.3em] text-white font-mono">{activeFamily.joinCode}</code>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  navigator.clipboard.writeText(activeFamily.joinCode);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+              >
+                {copied ? <Check size={13} /> : <Copy size={13} />} {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-zinc-600 mt-1.5">Teammates join from Teams → Join studio.</p>
+          </div>
+          <div>
+            <div className="text-xs text-zinc-500 mb-2">Members ({activeFamily.members.length})</div>
+            <ul className="divide-y divide-white/[0.05] rounded-lg border border-white/[0.08]">
+              {activeFamily.members.map((m) => (
+                <li key={m.uid} className="flex items-center gap-3 px-3 py-2.5">
+                  <div className="w-7 h-7 rounded-full bg-white/[0.06] flex items-center justify-center text-xs text-zinc-300">{(m.nickname || m.email || "?")[0]?.toUpperCase()}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-zinc-100 truncate">{m.nickname || m.email}{m.uid === user?.uid && <span className="text-zinc-500"> (you)</span>}</div>
+                    <div className="text-xs text-zinc-500 truncate">{m.email}</div>
+                  </div>
+                  <span className="text-[11px] uppercase tracking-wide text-zinc-500">{m.role}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <Link href="/teams" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Manage studios in Teams <ArrowRight size={13} /></Link>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+const EVENTS: { key: DiscordEvent; title: string; body: string }[] = [
+  { key: "taskCompleted", title: "Task completed", body: "When a task moves to Done on the board." },
+  { key: "newIdea", title: "New idea", body: "When someone adds an idea or design doc." },
+  { key: "newsPublished", title: "News published", body: "When a devlog or announcement goes live." },
+  { key: "patchNotes", title: "Patch notes", body: "When Player Signal publishes patch notes, crediting players." },
+];
+
+function NotificationsSection({ scopeId }: { scopeId: string }) {
+  const [events, setEvents] = useState<Partial<Record<DiscordEvent, boolean>>>({});
+  const [hasWebhook, setHasWebhook] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    return onSnapshot(doc(db, "integrations", scopeId), (s) => {
+      setEvents(s.data()?.discordEvents || {});
+      setHasWebhook(!!s.data()?.discordWebhookUrl);
+    }, () => setHasWebhook(false));
+  }, [scopeId]);
+
+  const toggle = (key: DiscordEvent, on: boolean) => {
+    setEvents((e) => ({ ...e, [key]: on }));
+    setDoc(doc(db, "integrations", scopeId), { discordEvents: { [key]: on } }, { merge: true });
+  };
+
+  return (
+    <Section title="Discord notifications" description="Choose which workspace events post to your Discord channel.">
+      {hasWebhook === false && (
+        <p className="text-xs text-amber-300/90 mb-4">No Discord webhook yet. Add one under Integrations for these to post.</p>
+      )}
+      <ul className="divide-y divide-white/[0.06]">
+        {EVENTS.map((e) => {
+          const on = events[e.key] !== false;
+          return (
+            <li key={e.key} className="flex items-center justify-between gap-4 py-3">
+              <div>
+                <div className="text-sm text-zinc-100">{e.title}</div>
+                <div className="text-xs text-zinc-500">{e.body}</div>
+              </div>
+              <button
+                role="switch"
+                aria-checked={on}
+                aria-label={e.title}
+                onClick={() => toggle(e.key, !on)}
+                className={`relative w-9 h-5 rounded-full transition-colors shrink-0 ${on ? "bg-[#c8ff00]/80" : "bg-white/10"}`}
+              >
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
+  );
+}
+
+function EmailSection({ scopeId }: { scopeId: string }) {
+  const { user } = useAuth();
+  const { activeFamily } = useFamily();
+  const [settings, setSettings] = useState<EmailSettings | null>(null);
+  const [status, setStatus] = useState<EmailStatus | null>(null);
+
+  useEffect(() => {
+    getEmailStatus().then(setStatus);
+    getDoc(doc(db, "email_settings", scopeId))
+      .then((s) => {
+        const d = s.data() || {};
+        setSettings({ ...DEFAULT_SETTINGS, ...d, theme: { ...DEFAULT_SETTINGS.theme, ...(d.theme || {}) } } as EmailSettings);
+      })
+      .catch(() => setSettings(DEFAULT_SETTINGS));
+  }, [scopeId]);
+
+  return (
+    <div className="space-y-6">
+      <Section title="Studio details & automatic updates" description="Already filled in from your workspace. Used on every email and your sign-up page.">
+        {settings ? (
+          <EmailSettingsForm
+            key={scopeId}
+            scopeId={scopeId}
+            settings={settings}
+            defaults={{ name: activeFamily?.name || user?.displayName || "", replyTo: user?.email || "" }}
+          />
+        ) : (
+          <Skeleton className="h-40 w-full" />
+        )}
+      </Section>
+      <DomainCard
+        key={scopeId}
+        scopeId={scopeId}
+        studioName={settings?.fromName || activeFamily?.name || user?.displayName || ""}
+        sharedAddress={status?.fromAddress ?? null}
+        available={!!(status?.resend && status?.firebaseAdmin)}
+      />
+      <Link href="/email" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Open Email to manage subscribers and campaigns <ArrowRight size={13} /></Link>
+    </div>
+  );
+}
+
+function AISection() {
+  const [status, setStatus] = useState<AIStatus | null>(null);
+  useEffect(() => {
+    getAIStatus().then(setStatus);
+  }, []);
+  const rows = [
+    { ok: status?.nebius, title: "Nebius Token Factory", body: "NEBIUS_API_KEY runs every AI feature." },
+    { ok: status?.tavily, title: "Tavily search", body: "TAVILY_API_KEY finds player feedback on Steam, Reddit and the web." },
+    { ok: status?.discordBot, title: "Discord bot", body: "DISCORD_BOT_TOKEN reads your feedback channel." },
+  ];
+  return (
+    <Section title="PatchPlan AI" description="AI runs on the server. Keys are set in your environment, not here.">
+      <ul className="space-y-3">
+        {rows.map((r) => (
+          <li key={r.title} className="flex gap-2.5">
+            {r.ok ? <CheckCircle size={16} weight="fill" className="text-emerald-400 shrink-0 mt-0.5" /> : <Circle size={16} className="text-zinc-600 shrink-0 mt-0.5" />}
+            <div>
+              <div className="text-sm text-zinc-100">{r.title}</div>
+              <div className="text-xs text-zinc-500">{r.body}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {status && (
+        <div className="mt-5 grid sm:grid-cols-2 gap-2 text-xs">
+          <div className="rounded-md border border-white/[0.08] px-3 py-2"><div className="text-zinc-500">Fast model</div><div className="font-mono text-zinc-300 truncate">{status.models.small}</div></div>
+          <div className="rounded-md border border-white/[0.08] px-3 py-2"><div className="text-zinc-500">Reasoning model</div><div className="font-mono text-zinc-300 truncate">{status.models.large}</div></div>
+        </div>
+      )}
+      <Link href="/ai" className="mt-5 inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Open PatchPlan AI <ArrowRight size={13} /></Link>
+    </Section>
+  );
+}
+
+function HelpSection() {
+  const router = useRouter();
+  const restart = () => {
+    try {
+      localStorage.removeItem(TOUR_SEEN_KEY);
+    } catch {
+      // Ignore: the ?tour=1 flag starts it anyway.
+    }
+    router.push("/?tour=1");
+  };
+  return (
+    <div className="space-y-6">
+      <Section title="Product tour" description="A one-minute walkthrough of every part of PatchPlan.">
+        <Button onClick={restart}><Play size={12} weight="fill" /> Start the tour</Button>
+      </Section>
+      <Section title="Features">
+        <ul className="grid sm:grid-cols-2 gap-2">
+          {FEATURES.map((f) => (
+            <li key={f.key}>
+              <Link href={f.href} className="flex gap-3 rounded-lg border border-white/[0.06] p-3 hover:border-white/15 h-full">
+                <f.icon size={17} weight="duotone" className="text-zinc-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm text-zinc-100">{f.title}</div>
+                  <div className="text-xs text-zinc-500 line-clamp-2">{f.body}</div>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Section>
+      <Section title="More">
+        <div className="flex flex-wrap gap-4 text-sm">
+          <Link href="/changelog" className="text-zinc-300 hover:text-white">Changelog</Link>
+          <Link href="/status" className="text-zinc-300 hover:text-white">System status</Link>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function AccountSection({ onSignOut }: { onSignOut: () => void }) {
+  const { user } = useAuth();
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!user) return null;
+
+  const remove = async () => {
+    try {
+      await deleteUser(user);
+    } catch (err: any) {
+      setError(err?.code === "auth/requires-recent-login" ? "For security, sign out and back in, then try again." : "Couldn't delete your account. Try again later.");
+      setConfirm(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Section title="Session" description={`Signed in as ${user.email}.`}>
+        <Button variant="ghost" onClick={onSignOut}>Sign out</Button>
+      </Section>
+      <Section title="Delete account" description="Removes your login permanently. Workspace data isn't deleted automatically." danger>
+        {error && <p className="text-xs text-red-300 mb-3">{error}</p>}
+        <button onClick={() => setConfirm(true)} className="px-3 py-1.5 rounded-md bg-red-500/90 text-white text-xs font-medium hover:bg-red-500">Delete account</button>
+      </Section>
+      <Modal isOpen={confirm} onClose={() => setConfirm(false)} title="Delete your account?">
+        <p className="text-sm text-zinc-400 mb-5">This permanently removes your login. It can&apos;t be undone.</p>
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setConfirm(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white">Cancel</button>
+          <button onClick={remove} className="px-3 py-1.5 text-sm rounded-md bg-red-500/90 text-white hover:bg-red-500">Yes, delete</button>
+        </div>
+      </Modal>
+    </div>
+  );
+}

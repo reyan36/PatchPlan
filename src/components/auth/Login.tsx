@@ -14,7 +14,6 @@ import {
   GoogleAuthProvider,
 } from "firebase/auth";
 import {
-  SquaresFour,
   X,
   EnvelopeSimple,
   LockSimple,
@@ -24,6 +23,7 @@ import {
   CircleNotch,
 } from "@phosphor-icons/react";
 
+import { Logo } from "@/components/ui/Logo";
 type Mode = "signin" | "signup";
 
 function friendlyError(code: string | undefined, fallback: string) {
@@ -182,7 +182,7 @@ export function Login({
 
         {/* Mobile logo */}
         <div className="md:hidden mb-6 w-10 h-10 rounded-xl bg-white/[0.08] flex items-center justify-center text-white">
-          <SquaresFour size={20} weight="fill" />
+          <Logo size={20} alt="PatchPlan" />
         </div>
 
         <h2 data-stagger data-swap className="text-[26px] font-semibold tracking-tight text-white">

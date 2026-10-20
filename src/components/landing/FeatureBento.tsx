@@ -225,7 +225,7 @@ function RoadmapVisual() {
     <div className="absolute inset-x-5 top-5 sm:inset-x-6 sm:top-6">
       <div className={`${panel} p-3.5`}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[11px] font-semibold text-white">Ramjet · Roadmap</span>
+          <span className="text-[11px] font-semibold text-white">Your Game · Roadmap</span>
           <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live
           </span>
@@ -245,7 +245,7 @@ function RoadmapVisual() {
           ))}
         </div>
         <div className="mt-3.5 px-2.5 py-1.5 rounded-md bg-black/40 border border-white/[0.06] font-mono text-[10px] text-neutral-500 truncate">
-          patchplan.app/p/roadmap/ramjet
+          patchplan.net/p/roadmap/your-game
         </div>
       </div>
     </div>
@@ -289,9 +289,9 @@ function DiscordVisual() {
 
 function NetworkVisual() {
   const creators = [
-    { name: "Wanderbots", platform: "yt", tier: "100K–500K", niche: "Roguelike", hue: "from-orange-400 to-rose-500" },
-    { name: "CohhCarnage", platform: "tw", tier: "500K+", niche: "RPG", hue: "from-violet-400 to-indigo-500" },
-    { name: "Retromation", platform: "yt", tier: "100K–500K", niche: "Sim", hue: "from-emerald-400 to-teal-500" },
+    { name: "Roguelike Channel", platform: "yt", tier: "100K–500K", niche: "Roguelike", hue: "from-orange-400 to-rose-500" },
+    { name: "RPG Streamer", platform: "tw", tier: "500K+", niche: "RPG", hue: "from-violet-400 to-indigo-500" },
+    { name: "Sim Reviewer", platform: "yt", tier: "100K–500K", niche: "Sim", hue: "from-emerald-400 to-teal-500" },
   ];
   return (
     <div className="absolute inset-x-5 top-5 sm:inset-x-6 sm:top-6">

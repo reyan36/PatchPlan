@@ -5,7 +5,6 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import {
-  SquaresFour,
   ArrowRight,
   DiscordLogo,
   XLogo,
@@ -24,6 +23,7 @@ import { AISection } from "./AISection";
 import { HeroGrid } from "./HeroGrid";
 import { FeatureBento } from "./FeatureBento";
 
+import { Logo } from "@/components/ui/Logo";
 if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
@@ -123,7 +123,7 @@ export function LandingPage() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="w-7 h-7 rounded-lg bg-white/[0.08] flex items-center justify-center text-white group-hover:bg-white/[0.12] transition-colors">
-              <SquaresFour size={15} weight="fill" />
+              <Logo size={15} />
             </div>
             <span className="font-semibold text-[13px] tracking-tight text-white">
               patchplan

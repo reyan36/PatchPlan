@@ -10,8 +10,14 @@ import TaskItem from "@tiptap/extension-task-item";
 import CodeBlock from "@tiptap/extension-code-block";
 import { CustomImage } from "./CustomImageNode";
 import { LinkMention } from "./LinkMentionNode";
-import { Tldraw, exportToBlob, Editor as TldrawEditor } from "tldraw";
-import "tldraw/tldraw.css";
+import dynamic from "next/dynamic";
+import type { Editor as TldrawEditor } from "tldraw";
+
+// tldraw is large; load it only when the Canvas tab is first opened.
+const IdeaCanvas = dynamic(() => import("./IdeaCanvas"), {
+  ssr: false,
+  loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground animate-pulse">Loading canvas…</div>,
+});
 import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { 
@@ -30,6 +36,12 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"text" | "canvas">("text");
   const [tldrawEditor, setTldrawEditor] = useState<TldrawEditor | null>(null);
+  const [canvasOpened, setCanvasOpened] = useState(false);
+
+  // Keep the canvas mounted after the first visit so drawings survive tab switches.
+  useEffect(() => {
+    if (activeTab === "canvas") setCanvasOpened(true);
+  }, [activeTab]);
   const { setIsDirty, handleNavigation } = useDirty();
 
   const editor = useEditor({
@@ -143,6 +155,7 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
     }
 
     try {
+      const { exportToBlob } = await import("tldraw");
       const blob = await exportToBlob({
         editor: tldrawEditor,
         ids: shapeIds,
@@ -397,10 +410,7 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
         {/* Tldraw Canvas Tab */}
         <div className={`absolute inset-0 ${activeTab === "canvas" ? "block" : "hidden"}`}>
           <div className="h-full w-full" style={{ filter: "invert(1) hue-rotate(180deg)" }}>
-            <Tldraw 
-              persistenceKey={`tldraw-${ideaId}`} 
-              onMount={(editor) => setTldrawEditor(editor)}
-            />
+            {canvasOpened && <IdeaCanvas ideaId={ideaId} onMount={setTldrawEditor} />}
           </div>
         </div>
       </div>

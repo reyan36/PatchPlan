@@ -1,11 +1,16 @@
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
+export type DiscordEvent = "taskCompleted" | "newIdea" | "newsPublished" | "patchNotes";
+
+/** Events are on unless turned off in Settings → Notifications. */
+const eventEnabled = (data: Record<string, any>, event: DiscordEvent) => data.discordEvents?.[event] !== false;
+
 export const notifyTaskCompleted = async (scopeId: string, taskTitle: string, authorName: string) => {
   if (!scopeId) return;
   try {
     const docSnap = await getDoc(doc(db, "integrations", scopeId));
-    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl) return;
+    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl || !eventEnabled(docSnap.data(), "taskCompleted")) return;
     
     const webhookUrl = docSnap.data().discordWebhookUrl;
     
@@ -34,7 +39,7 @@ export const notifyNewIdea = async (scopeId: string, ideaTitle: string, authorNa
   if (!scopeId) return;
   try {
     const docSnap = await getDoc(doc(db, "integrations", scopeId));
-    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl) return;
+    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl || !eventEnabled(docSnap.data(), "newIdea")) return;
     
     const webhookUrl = docSnap.data().discordWebhookUrl;
     
@@ -64,7 +69,7 @@ export const notifyNewsPublished = async (scopeId: string, articleTitle: string,
   if (!scopeId) return;
   try {
     const docSnap = await getDoc(doc(db, "integrations", scopeId));
-    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl) return;
+    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl || !eventEnabled(docSnap.data(), "newsPublished")) return;
     
     const webhookUrl = docSnap.data().discordWebhookUrl;
     
@@ -73,7 +78,7 @@ export const notifyNewsPublished = async (scopeId: string, articleTitle: string,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         embeds: [{
-          title: "?? New Article Published",
+          title: "📰 New Article Published",
           description: `**${articleTitle}** has just been posted.`,
           color: 3447003, // Blue
           fields: [
@@ -99,7 +104,7 @@ export const notifyPatchNotes = async (
   if (!scopeId) return false;
   try {
     const docSnap = await getDoc(doc(db, "integrations", scopeId));
-    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl) return false;
+    if (!docSnap.exists() || !docSnap.data().discordWebhookUrl || !eventEnabled(docSnap.data(), "patchNotes")) return false;
 
     const names = Array.from(new Set(credits.filter(Boolean)));
     const res = await fetch(docSnap.data().discordWebhookUrl, {

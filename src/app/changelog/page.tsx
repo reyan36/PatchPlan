@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { SquaresFour, ArrowLeft } from "@phosphor-icons/react";
+import { ArrowLeft } from "@phosphor-icons/react";
 import { ChangelogEntry } from "@/lib/changelog";
 
+import { Logo } from "@/components/ui/Logo";
 function formatReleaseDate(dateStr: string): string {
   const parsed = new Date(`${dateStr}T00:00:00`);
   if (isNaN(parsed.getTime())) return dateStr;
@@ -46,7 +47,7 @@ export default function ChangelogPage() {
         <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 group">
             <div className="w-7 h-7 rounded-lg bg-white/[0.08] flex items-center justify-center text-white group-hover:bg-white/[0.12] transition-colors">
-              <SquaresFour size={15} weight="fill" />
+              <Logo size={15} />
             </div>
             <span className="font-semibold text-sm tracking-tight text-white">
               patchplan

@@ -8,6 +8,7 @@ import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove, getDocs, g
 import { Buildings, UserPlus, SignIn, Plus, SignOut } from "@phosphor-icons/react";
 import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 export default function TeamsPage() {
   const { user, loading: authLoading } = useAuth();
@@ -45,7 +46,7 @@ export default function TeamsPage() {
     fetchFamilies();
   }, [userProfile?.joinedFamilies]);
 
-  if (authLoading || familyLoading) return <div className="p-8 text-muted-foreground animate-pulse">Loading Teams...</div>;
+  if (authLoading || familyLoading) return <PageLoader variant="grid" label="Loading teams" />;
   if (!user) return <Login />;
 
   const generateJoinCode = () => {
@@ -351,7 +352,7 @@ export default function TeamsPage() {
                 type="text" 
                 value={familyName}
                 onChange={e => setFamilyName(e.target.value)}
-                placeholder="e.g. Patchwork Games" 
+                placeholder="e.g. Your Studio" 
                 className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none"
               />
             </div>

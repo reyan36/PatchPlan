@@ -4,10 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/generate-changelog.js && next build",
-    "changelog": "node scripts/generate-changelog.js",
+    "build": "node scripts/changelog/sync.mjs && next build",
+    "changelog": "node scripts/changelog/sync.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "changelog:refresh": "node scripts/changelog/sync.mjs --refresh"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
@@ -21,6 +22,7 @@
     "@tiptap/react": "^2.10.0",
     "@tiptap/starter-kit": "^2.10.0",
     "firebase": "^10.12.0",
+    "firebase-admin": "^12.7.0",
     "gsap": "^3.15.0",
     "lucide-react": "^0.439.0",
     "next": "14.2.11",

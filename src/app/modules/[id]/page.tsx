@@ -12,6 +12,7 @@ import { Login } from "@/components/auth/Login";
 import { Modal } from "@/components/ui/Modal";
 import type { ModuleSchema } from "@/lib/ai/types";
 import { MODULE_ICONS, ModuleRenderer, emptyRow, type ModuleRow } from "@/features/ai/ModuleRenderer";
+import { PageLoader } from "@/components/ui/PageLoader";
 
 type ModuleDoc = { schema: ModuleSchema; userId: string; familyId: string | null; prompt?: string };
 
@@ -47,7 +48,7 @@ export default function ModulePage({ params }: { params: { id: string } }) {
     });
   }, [user, mod?.familyId, mod?.userId, params.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (authLoading || familyLoading || (user && mod === undefined)) return <div className="p-8 text-sm text-zinc-500 animate-pulse">Loading module…</div>;
+  if (authLoading || familyLoading || (user && mod === undefined)) return <PageLoader label="Loading module" />;
   if (!user) return <Login />;
   if (!mod) {
     return (

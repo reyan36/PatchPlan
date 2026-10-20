@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { SubscribeForm } from "@/components/email/SubscribeForm";
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
@@ -237,6 +238,8 @@ export default function PublicArticlePage({ params }: { params: { articleId: str
               </a>
             )}
           </div>
+
+          <SubscribeForm scopeId={article.familyId} source="article" studioName={studioName} className="mt-6 bg-[var(--pp-surface)]" />
 
           <div className="mt-10 text-center">
             <Link href={hubHref} className="inline-flex items-center gap-1.5 text-sm text-[var(--pp-muted)] hover:text-[var(--pp-fg)] transition-colors">
