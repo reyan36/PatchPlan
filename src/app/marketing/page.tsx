@@ -1,747 +1,385 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { 
-  MagnifyingGlass, 
-  Plus, 
-  Trash, 
-  Funnel, 
-  Users, 
-  YoutubeLogo, 
-  TwitchLogo, 
-  TiktokLogo, 
-  Newspaper, 
-  Palette, 
-  Buildings, 
-  GameController, 
-  SpeakerHigh, 
-  FileArrowUp, 
-  FileArrowDown, 
-  ArrowSquareOut,
-  Tag,
-  CheckCircle
-} from "@phosphor-icons/react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowSquareOut, CheckCircle, Columns, FileArrowDown, FileArrowUp, List, MagnifyingGlass, Plus, ShareNetwork, Tag } from "@phosphor-icons/react";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { db } from "@/lib/firebase";
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  serverTimestamp,
-  writeBatch
-} from "firebase/firestore";
-import { CsvImportModal, ParsedContact } from "@/components/network/CsvImportModal";
+import { CsvImportModal, type ParsedContact } from "@/components/network/CsvImportModal";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { PillSelect } from "@/components/ui/PillSelect";
+import { ContactDrawer } from "@/features/network/ContactDrawer";
+import { PLATFORM_KEYS, STAGES, contactHref, initials, normalizeRole, platformOf, stageOf, type Contact } from "@/features/network/networkMeta";
 
-type Contact = {
-  id: string;
-  name: string;
-  role: string;       // Platform or role
-  tier?: string;      // Follower / subscriber tier
-  niche?: string;     // Specific niche or genre
-  contact: string;    // Email, handle, or link
-  status: string;     // New, Contacted, In Talks, Hired, etc.
-  notes: string;
-  scopeId?: string;
-  createdAt?: any;
+type View = "list" | "pipeline";
+const VIEW_KEY = "pp-network-view";
+
+const csvCell = (val: string) => {
+  const s = (val ?? "").toString();
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-// Platform definitions with icons and brand accent colors
-const PLATFORM_CONFIG: Record<string, { label: string; icon: any; badgeClass: string; textClass: string }> = {
-  "YouTube": {
-    label: "YouTube",
-    icon: YoutubeLogo,
-    badgeClass: "bg-red-500/10 text-red-400 border-red-500/25",
-    textClass: "text-red-400"
-  },
-  "Twitch": {
-    label: "Twitch",
-    icon: TwitchLogo,
-    badgeClass: "bg-purple-500/10 text-purple-400 border-purple-500/25",
-    textClass: "text-purple-400"
-  },
-  "TikTok": {
-    label: "TikTok",
-    icon: TiktokLogo,
-    badgeClass: "bg-cyan-500/10 text-cyan-400 border-cyan-500/25",
-    textClass: "text-cyan-400"
-  },
-  "Press": {
-    label: "Press / Media",
-    icon: Newspaper,
-    badgeClass: "bg-amber-500/10 text-amber-400 border-amber-500/25",
-    textClass: "text-amber-400"
-  },
-  "Freelance Artist": {
-    label: "Freelance Artist",
-    icon: Palette,
-    badgeClass: "bg-pink-500/10 text-pink-400 border-pink-500/25",
-    textClass: "text-pink-400"
-  },
-  "Publisher": {
-    label: "Publisher",
-    icon: Buildings,
-    badgeClass: "bg-blue-500/10 text-blue-400 border-blue-500/25",
-    textClass: "text-blue-400"
-  },
-  "Developer": {
-    label: "Developer",
-    icon: GameController,
-    badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/25",
-    textClass: "text-emerald-400"
-  },
-  "Sound Designer": {
-    label: "Sound Designer",
-    icon: SpeakerHigh,
-    badgeClass: "bg-indigo-500/10 text-indigo-400 border-indigo-500/25",
-    textClass: "text-indigo-400"
-  },
-  "Other": {
-    label: "Other",
-    icon: Users,
-    badgeClass: "bg-zinc-500/10 text-zinc-400 border-zinc-500/25",
-    textClass: "text-zinc-400"
-  }
-};
-
-const PLATFORMS = Object.keys(PLATFORM_CONFIG);
-
-const TIERS = [
-  { value: "<10K", label: "<10K", style: "bg-zinc-800/60 text-zinc-300 border-zinc-700/60" },
-  { value: "10K–50K", label: "10K–50K", style: "bg-blue-500/10 text-blue-300 border-blue-500/25" },
-  { value: "50K–100K", label: "50K–100K", style: "bg-violet-500/10 text-violet-300 border-violet-500/25" },
-  { value: "100K–500K", label: "100K–500K", style: "bg-amber-500/10 text-amber-300 border-amber-500/25" },
-  { value: "500K+", label: "500K+", style: "bg-yellow-500/15 text-yellow-300 border-yellow-500/30 font-semibold" },
-  { value: "N/A", label: "N/A", style: "bg-zinc-900/40 text-zinc-500 border-zinc-800" },
-];
-
-const STATUS_CONFIG: Record<string, { label: string; style: string }> = {
-  "New": { label: "New", style: "bg-zinc-800 text-zinc-300 border-zinc-700/60" },
-  "Contacted": { label: "Contacted", style: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  "In Talks": { label: "In Talks", style: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  "Hired": { label: "Hired", style: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-  "Rejected": { label: "Rejected", style: "bg-rose-500/15 text-rose-400 border-rose-500/30" },
-  "Completed": { label: "Completed", style: "bg-purple-500/15 text-purple-400 border-purple-500/30" }
-};
-
-const STATUSES = Object.keys(STATUS_CONFIG);
-
-const COMMON_NICHES = [
-  "Roguelike",
-  "Co-op",
-  "Speedrunner",
-  "Horror",
-  "RPG",
-  "Strategy",
-  "Action",
-  "Retro / Pixel",
-  "Cozy / Sim",
-  "Card Battler",
-  "Platformer",
-  "Indie Showcase"
-];
-
-// Helper to escape CSV cell contents
-function escapeCsvCell(val: string): string {
-  const str = (val ?? "").toString();
-  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-export default function MarketingPage() {
+export default function NetworkPage() {
   const { user, loading: authLoading } = useAuth();
   const { activeFamily, loading: familyLoading } = useFamily();
-  
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [fetching, setFetching] = useState(true);
-  
-  // Filter states
-  const [searchQuery, setSearchQuery] = useState("");
-  const [platformFilter, setPlatformFilter] = useState("All");
-  const [tierFilter, setTierFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  
-  // Modals & Feedback
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
   const scopeId = activeFamily ? activeFamily.id : user?.uid;
 
-  // Real-time Firestore sync
+  const [contacts, setContacts] = useState<Contact[] | null>(null);
+  const [search, setSearch] = useState("");
+  const [platform, setPlatform] = useState("All");
+  const [stage, setStage] = useState("All");
+  const [view, setView] = useState<View>("list");
+  const [editing, setEditing] = useState<Contact | "new" | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropStage, setDropStage] = useState<string | null>(null);
+
   useEffect(() => {
-    if (!user || !scopeId) {
-      setContacts([]);
-      setFetching(false);
-      return;
-    }
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v === "list" || v === "pipeline") setView(v);
+    } catch {}
+  }, []);
 
-    setFetching(true);
-    const q = query(collection(db, "contacts"), where("scopeId", "==", scopeId));
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      const loaded: Contact[] = [];
-      snapshot.forEach((d) => {
-        const data = d.data();
-        
-        // Backward-compatibility normalization
-        let normalizedRole = data.role || "YouTube";
-        if (normalizedRole === "YouTuber") normalizedRole = "YouTube";
-        if (normalizedRole === "Twitch Streamer") normalizedRole = "Twitch";
-        if (normalizedRole === "Animator" || normalizedRole === "Logo Designer") normalizedRole = "Freelance Artist";
-
-        loaded.push({
-          id: d.id,
-          name: data.name || "",
-          role: normalizedRole,
-          tier: data.tier || "<10K",
-          niche: data.niche || "",
-          contact: data.contact || "",
-          status: data.status || "New",
-          notes: data.notes || "",
-          scopeId: data.scopeId
-        });
-      });
-      setContacts(loaded);
-      setFetching(false);
-    }, (err) => {
-      console.warn("Contacts Firestore listener error:", err.message);
-      setFetching(false);
-    });
-
-    return () => unsub();
+  useEffect(() => {
+    if (!user || !scopeId) return;
+    setContacts(null);
+    return onSnapshot(
+      query(collection(db, "contacts"), where("scopeId", "==", scopeId)),
+      (snap) =>
+        setContacts(
+          snap.docs.map((d) => {
+            const x = d.data();
+            return {
+              id: d.id,
+              name: x.name || "",
+              role: normalizeRole(x.role),
+              tier: x.tier || "<10K",
+              niche: x.niche || "",
+              contact: x.contact || "",
+              status: x.status || "New",
+              notes: x.notes || "",
+              scopeId: x.scopeId,
+              createdAt: x.createdAt,
+              updatedAt: x.updatedAt,
+            };
+          })
+        ),
+      (err) => {
+        console.warn("Contacts listener:", err.message);
+        setContacts([]);
+      }
+    );
   }, [user, scopeId]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const flash = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
   };
 
-  if (authLoading || familyLoading) {
-    return <PageLoader label="Loading network" />;
-  }
-  
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (contacts || [])
+      .filter(
+        (c) =>
+          (platform === "All" || c.role === platform) &&
+          (stage === "All" || c.status === stage) &&
+          (!q || [c.name, c.contact, c.niche, c.notes].some((v) => (v || "").toLowerCase().includes(q)))
+      )
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [contacts, search, platform, stage]);
+
+  const stageCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    (contacts || []).forEach((c) => (m[c.status] = (m[c.status] || 0) + 1));
+    return m;
+  }, [contacts]);
+
+  if (authLoading || familyLoading) return <PageLoader label="Loading network" />;
   if (!user) return <Login />;
 
-  const addContact = async () => {
+  const pickView = (v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {}
+  };
+
+  const saveContact = async (draft: Omit<Contact, "id" | "scopeId" | "createdAt" | "updatedAt">) => {
     if (!scopeId) return;
-
-    const newContactData: Omit<Contact, "id"> = {
-      name: "",
-      role: "YouTube",
-      tier: "<10K",
-      niche: "",
-      contact: "",
-      status: "New",
-      notes: "",
-      scopeId,
-    };
-
-    try {
-      await addDoc(collection(db, "contacts"), {
-        ...newContactData,
-        createdAt: serverTimestamp(),
-      });
-    } catch (err) {
-      // Local fallback in case of Firestore network error or offline
-      setContacts(prev => [
-        { id: Date.now().toString(), ...newContactData },
-        ...prev
-      ]);
-    }
+    if (editing && editing !== "new") await updateDoc(doc(db, "contacts", editing.id), { ...draft, updatedAt: serverTimestamp() });
+    else await addDoc(collection(db, "contacts"), { ...draft, scopeId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   };
 
-  const updateContact = async (id: string, field: keyof Contact, value: string) => {
-    setContacts(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
-
-    try {
-      const docRef = doc(db, "contacts", id);
-      await updateDoc(docRef, { [field]: value });
-    } catch (err) {
-      // Handled silently for offline tolerance
-    }
+  const moveTo = (id: string, status: string) => {
+    setContacts((cur) => cur && cur.map((c) => (c.id === id ? { ...c, status } : c)));
+    updateDoc(doc(db, "contacts", id), { status, updatedAt: serverTimestamp() }).catch(() => flash("Couldn't update. Check your connection."));
   };
 
-  const deleteContact = async (id: string) => {
-    setContacts(prev => prev.filter(c => c.id !== id));
-
-    try {
-      await deleteDoc(doc(db, "contacts", id));
-    } catch (err) {
-      // Handled silently
-    }
-  };
-
-  // CSV Export
-  const handleExportCsv = () => {
-    const listToExport = filteredContacts.length > 0 ? filteredContacts : contacts;
-    if (listToExport.length === 0) {
-      showToast("No contacts to export.");
-      return;
-    }
-
-    const headers = ["Name", "Platform", "Tier", "Niche", "Contact", "Status", "Notes"];
-    const rows = listToExport.map(c => [
-      escapeCsvCell(c.name),
-      escapeCsvCell(c.role),
-      escapeCsvCell(c.tier || "<10K"),
-      escapeCsvCell(c.niche || ""),
-      escapeCsvCell(c.contact || ""),
-      escapeCsvCell(c.status || "New"),
-      escapeCsvCell(c.notes || "")
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const exportCsv = () => {
+    const list = shown.length ? shown : contacts || [];
+    if (!list.length) return flash("No contacts to export.");
+    const rows = [["Name", "Platform", "Tier", "Niche", "Contact", "Status", "Notes"], ...list.map((c) => [c.name, c.role, c.tier || "", c.niche || "", c.contact, c.status, c.notes])];
+    const blob = new Blob([rows.map((r) => r.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `patchplan_network_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `patchplan_network_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
-
-    showToast(`Exported ${listToExport.length} contacts to CSV.`);
+    flash(`Exported ${list.length} contacts.`);
   };
 
-  // Batch CSV Import via Firestore
-  const handleBatchImport = async (parsed: ParsedContact[]) => {
-    if (!scopeId || parsed.length === 0) return;
-
-    const batch = writeBatch(db);
-    const newLocalContacts: Contact[] = [];
-
-    parsed.forEach(item => {
-      const newRef = doc(collection(db, "contacts"));
-      const newContact: Contact = {
-        id: newRef.id,
-        name: item.name,
-        role: item.role,
-        tier: item.tier,
-        niche: item.niche,
-        contact: item.contact,
-        status: item.status,
-        notes: item.notes,
-        scopeId,
-      };
-
-      batch.set(newRef, {
-        ...newContact,
-        createdAt: serverTimestamp(),
-      });
-
-      newLocalContacts.push(newContact);
-    });
-
-    try {
+  const importCsv = async (parsed: ParsedContact[]) => {
+    if (!scopeId || !parsed.length) return;
+    // Batches cap at 500 writes.
+    for (let i = 0; i < parsed.length; i += 400) {
+      const batch = writeBatch(db);
+      parsed.slice(i, i + 400).forEach((p) => batch.set(doc(collection(db, "contacts")), { ...p, scopeId, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }));
       await batch.commit();
-      setContacts(prev => [...newLocalContacts, ...prev]);
-      showToast(`Successfully imported ${parsed.length} contacts!`);
-    } catch (err: any) {
-      console.error("Batch import error:", err);
-      // Still apply optimistically if offline
-      setContacts(prev => [...newLocalContacts, ...prev]);
-      showToast(`Imported ${parsed.length} contacts locally.`);
     }
+    flash(`Imported ${parsed.length} contacts.`);
   };
 
-  const filteredContacts = useMemo(() => {
-    return contacts.filter(c => {
-      const matchesSearch = 
-        (c.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
-        (c.contact || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.niche || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.notes || "").toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesPlatform = platformFilter === "All" || c.role === platformFilter;
-      const matchesTier = tierFilter === "All" || (c.tier || "<10K") === tierFilter;
-      const matchesStatus = statusFilter === "All" || c.status === statusFilter;
-
-      return matchesSearch && matchesPlatform && matchesTier && matchesStatus;
-    });
-  }, [contacts, searchQuery, platformFilter, tierFilter, statusFilter]);
-
-  // Utility to determine clickable action for contact info (URL or email)
-  const getContactAction = (val: string) => {
-    if (!val) return null;
-    const trimmed = val.trim();
-    if (trimmed.includes("@") && !trimmed.startsWith("http")) {
-      return { href: `mailto:${trimmed}`, isMail: true };
-    }
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-      return { href: trimmed, isMail: false };
-    }
-    if (trimmed.includes("twitch.tv") || trimmed.includes("youtube.com") || trimmed.includes("twitter.com") || trimmed.includes("x.com")) {
-      return { href: `https://${trimmed.replace(/^https?:\/\//, '')}`, isMail: false };
-    }
-    return null;
-  };
+  const filtersActive = search || platform !== "All" || stage !== "All";
+  const total = contacts?.length || 0;
 
   return (
-    <div className="space-y-6 h-full flex flex-col pb-8">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-zinc-900 border border-white/20 text-white text-xs shadow-xl animate-in slide-in-from-bottom-2 duration-200">
-          <CheckCircle size={16} weight="fill" className="text-emerald-400" />
-          <span>{toastMessage}</span>
+    <div className="max-w-6xl mx-auto space-y-6">
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-zinc-900 border border-white/15 text-white text-xs shadow-xl pp-pop">
+          <CheckCircle size={15} weight="fill" className="text-emerald-400" /> {toast}
         </div>
       )}
 
-      {/* Page Header */}
-      <header className="py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-[#FAFAFA]">Studio Network</h1>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-zinc-400">
-              {contacts.length} {contacts.length === 1 ? "Partner" : "Partners"}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-400 mt-1">
-            Track game streamers, press outlets, publishers, and freelance creators in your pipeline.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+            <ShareNetwork size={26} weight="duotone" /> Network
+          </h1>
+          <p className="text-sm text-zinc-500 mt-1">Streamers, press, publishers and freelancers, and where each conversation stands.</p>
         </div>
-
-        {/* Global Actions */}
-        <div className="flex items-center gap-2">
-          {/* CSV Import */}
-          <button
-            type="button"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors shadow-sm"
-            title="Import contacts from CSV"
-          >
-            <FileArrowUp size={15} weight="bold" className="text-blue-400" />
-            <span>Import CSV</span>
+        <div className="flex items-center gap-2 self-start">
+          <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.04]">
+            <FileArrowUp size={14} /> Import
           </button>
-
-          {/* CSV Export */}
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition-colors shadow-sm"
-            title="Export contacts to CSV"
-          >
-            <FileArrowDown size={15} weight="bold" className="text-emerald-400" />
-            <span>Export CSV</span>
+          <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.04]">
+            <FileArrowDown size={14} /> Export
           </button>
-
-          {/* Add Contact Button */}
-          <button 
-            type="button"
-            onClick={addContact}
-            className="flex items-center gap-1.5 bg-white text-black px-3.5 py-2 rounded-lg text-xs font-semibold hover:bg-zinc-200 transition-colors whitespace-nowrap active:scale-95 shadow-sm"
-          >
-            <Plus size={15} weight="bold" /> Add Contact
+          <button onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#FAFAFA] text-black text-xs font-semibold hover:bg-zinc-200">
+            <Plus size={14} weight="bold" /> Add contact
           </button>
         </div>
       </header>
 
-      {/* Filter & Search Bar */}
-      <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center bg-[#111113] p-3 rounded-xl border border-white/10 shadow-sm">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <MagnifyingGlass size={15} weight="bold" className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
-          <input 
-            type="text" 
-            placeholder="Search by name, contact, niche, or notes..." 
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full bg-[#18181b] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-white/30 text-white placeholder:text-zinc-500 transition-colors"
-          />
+      {/* Outreach pipeline: counts per stage, click to filter */}
+      <section className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        {STAGES.map((s) => {
+          const on = stage === s.key;
+          return (
+            <button
+              key={s.key}
+              onClick={() => setStage(on ? "All" : s.key)}
+              className={`text-left rounded-xl border px-3.5 py-3 transition-colors ${on ? "border-white/30 bg-white/[0.06]" : "border-white/10 bg-white/[0.02] hover:border-white/20"}`}
+            >
+              <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+                <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} /> {s.label}
+              </span>
+              <span className="mt-1 block text-xl font-semibold text-white tabular-nums">{stageCounts[s.key] || 0}</span>
+            </button>
+          );
+        })}
+      </section>
+
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+        <div className="relative lg:w-72">
+          <MagnifyingGlass size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, niche, notes" className="w-full bg-black/30 border border-white/10 rounded-md pl-8 pr-3 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-white/25" />
         </div>
-
-        {/* Dropdown Filters */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Platform Filter */}
-          <div className="relative">
-            <select 
-              value={platformFilter}
-              onChange={e => setPlatformFilter(e.target.value)}
-              className="appearance-none bg-[#18181b] border border-white/10 rounded-lg pl-3 pr-7 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer text-zinc-300 transition-colors"
-            >
-              <option value="All">All Platforms</option>
-              {PLATFORMS.map(p => (
-                <option key={p} value={p} className="bg-[#18181b] text-white">
-                  {PLATFORM_CONFIG[p]?.label || p}
-                </option>
-              ))}
-            </select>
-            <Funnel size={12} weight="bold" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-          </div>
-
-          {/* Tier Filter */}
-          <div className="relative">
-            <select 
-              value={tierFilter}
-              onChange={e => setTierFilter(e.target.value)}
-              className="appearance-none bg-[#18181b] border border-white/10 rounded-lg pl-3 pr-7 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer text-zinc-300 transition-colors"
-            >
-              <option value="All">All Audience Tiers</option>
-              {TIERS.map(t => (
-                <option key={t.value} value={t.value} className="bg-[#18181b] text-white">
-                  {t.label}
-                </option>
-              ))}
-            </select>
-            <Funnel size={12} weight="bold" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-          </div>
-
-          {/* Status Filter */}
-          <div className="relative">
-            <select 
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="appearance-none bg-[#18181b] border border-white/10 rounded-lg pl-3 pr-7 py-1.5 text-xs focus:outline-none focus:border-white/30 cursor-pointer text-zinc-300 transition-colors"
-            >
-              <option value="All">All Statuses</option>
-              {STATUSES.map(s => (
-                <option key={s} value={s} className="bg-[#18181b] text-white">
-                  {s}
-                </option>
-              ))}
-            </select>
-            <Funnel size={12} weight="bold" className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-          </div>
-
-          {/* Clear Filters (if active) */}
-          {(searchQuery || platformFilter !== "All" || tierFilter !== "All" || statusFilter !== "All") && (
+        <div className="flex gap-1 overflow-x-auto [scrollbar-width:none]">
+          <button onClick={() => setPlatform("All")} className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-medium ${platform === "All" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200"}`}>
+            All
+          </button>
+          {PLATFORM_KEYS.map((k) => {
+            const p = platformOf(k);
+            return (
+              <button key={k} onClick={() => setPlatform(platform === k ? "All" : k)} className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium ${platform === k ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200"}`}>
+                <p.icon size={13} /> {p.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 lg:ml-auto">
+          {filtersActive && (
             <button
               onClick={() => {
-                setSearchQuery("");
-                setPlatformFilter("All");
-                setTierFilter("All");
-                setStatusFilter("All");
+                setSearch("");
+                setPlatform("All");
+                setStage("All");
               }}
-              className="text-xs text-zinc-400 hover:text-white px-2 py-1 rounded hover:bg-white/5 transition-colors"
+              className="text-xs text-zinc-500 hover:text-white"
             >
-              Reset
+              Clear filters
             </button>
           )}
+          <div className="flex p-0.5 rounded-md border border-white/10">
+            <button onClick={() => pickView("list")} className={`p-1.5 rounded ${view === "list" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200"}`} aria-label="List view" title="List">
+              <List size={14} />
+            </button>
+            <button onClick={() => pickView("pipeline")} className={`p-1.5 rounded ${view === "pipeline" ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200"}`} aria-label="Pipeline view" title="Pipeline">
+              <Columns size={14} />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Table */}
-      <div className="bg-[#111113] border border-white/10 rounded-xl overflow-hidden flex-grow shadow-lg">
-        <div className="overflow-x-auto min-h-[460px]">
-          <table className="w-full text-xs text-left whitespace-nowrap">
-            <thead className="text-[11px] text-zinc-400 uppercase tracking-wider bg-white/[0.02] border-b border-white/10">
-              <tr>
-                <th className="px-3.5 py-3 font-semibold w-[16%]">Name</th>
-                <th className="px-3.5 py-3 font-semibold w-[16%]">Platform</th>
-                <th className="px-3.5 py-3 font-semibold w-[12%]">Audience Tier</th>
-                <th className="px-3.5 py-3 font-semibold w-[14%]">Niche / Focus</th>
-                <th className="px-3.5 py-3 font-semibold w-[18%]">Contact (Email/Link)</th>
-                <th className="px-3.5 py-3 font-semibold w-[11%]">Status</th>
-                <th className="px-3.5 py-3 font-semibold w-[18%]">Notes</th>
-                <th className="px-2 py-3 font-semibold w-[4%] text-center"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {filteredContacts.map(contact => {
-                const platformInfo = PLATFORM_CONFIG[contact.role] || PLATFORM_CONFIG["Other"];
-                const PlatformIcon = platformInfo.icon;
-                const tierInfo = TIERS.find(t => t.value === (contact.tier || "<10K")) || TIERS[0];
-                const statusInfo = STATUS_CONFIG[contact.status] || STATUS_CONFIG["New"];
-                const contactAction = getContactAction(contact.contact);
-
-                return (
-                  <tr key={contact.id} className="hover:bg-white/[0.02] transition-colors group">
-                    {/* Name */}
-                    <td className="p-2">
-                      <input 
-                        type="text" 
-                        value={contact.name}
-                        onChange={e => updateContact(contact.id, "name", e.target.value)}
-                        placeholder="Creator or Studio name..."
-                        className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-black/50 px-2.5 py-1.5 rounded-md transition-all outline-none text-white font-medium placeholder:text-zinc-600"
-                      />
-                    </td>
-
-                    {/* Platform Badge with Dropdown */}
-                    <td className="p-2">
-                      <div className="relative inline-flex items-center">
-                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-xs font-medium pointer-events-none ${platformInfo.badgeClass}`}>
-                          <PlatformIcon size={14} weight="duotone" className="shrink-0" />
-                          <span>{platformInfo.label}</span>
-                        </div>
-                        <select
-                          value={contact.role}
-                          onChange={e => updateContact(contact.id, "role", e.target.value)}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title="Change platform"
-                        >
-                          {PLATFORMS.map(p => (
-                            <option key={p} value={p} className="bg-[#18181b] text-white">
-                              {PLATFORM_CONFIG[p]?.label || p}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-
-                    {/* Audience Tier Badge with Dropdown */}
-                    <td className="p-2">
-                      <div className="relative inline-flex items-center">
-                        <div className={`px-2 py-0.5 rounded-full border text-[11px] font-mono pointer-events-none ${tierInfo.style}`}>
-                          {tierInfo.label}
-                        </div>
-                        <select
-                          value={contact.tier || "<10K"}
-                          onChange={e => updateContact(contact.id, "tier", e.target.value)}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title="Change audience tier"
-                        >
-                          {TIERS.map(t => (
-                            <option key={t.value} value={t.value} className="bg-[#18181b] text-white">
-                              {t.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-
-                    {/* Niche / Focus */}
-                    <td className="p-2">
-                      <div className="relative flex items-center">
-                        <Tag size={12} className="absolute left-2.5 text-zinc-500 pointer-events-none" />
-                        <input 
-                          type="text" 
-                          list={`niches-list-${contact.id}`}
-                          value={contact.niche || ""}
-                          onChange={e => updateContact(contact.id, "niche", e.target.value)}
-                          placeholder="e.g. Roguelike"
-                          className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-black/50 pl-7 pr-2 py-1.5 rounded-md transition-all outline-none text-zinc-300 placeholder:text-zinc-600 text-xs"
-                        />
-                        <datalist id={`niches-list-${contact.id}`}>
-                          {COMMON_NICHES.map(n => <option key={n} value={n} />)}
-                        </datalist>
-                      </div>
-                    </td>
-
-                    {/* Contact (Email/Link) + Quick Link Action */}
-                    <td className="p-2">
-                      <div className="flex items-center gap-1.5">
-                        <input 
-                          type="text" 
-                          value={contact.contact}
-                          onChange={e => updateContact(contact.id, "contact", e.target.value)}
-                          placeholder="Email, URL, or handle..."
-                          className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-black/50 px-2.5 py-1.5 rounded-md transition-all outline-none text-zinc-300 placeholder:text-zinc-600 text-xs"
-                        />
-                        {contactAction && (
-                          <a 
-                            href={contactAction.href}
-                            target={contactAction.isMail ? "_self" : "_blank"}
-                            rel="noopener noreferrer"
-                            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 transition-colors shrink-0"
-                            title={contactAction.isMail ? "Send email" : "Open external link"}
-                          >
-                            <ArrowSquareOut size={14} weight="bold" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Status Pill Badge with Dropdown */}
-                    <td className="p-2">
-                      <div className="relative inline-flex items-center">
-                        <div className={`px-2.5 py-0.5 rounded-full border text-[11px] font-medium pointer-events-none ${statusInfo.style}`}>
-                          {statusInfo.label}
-                        </div>
-                        <select
-                          value={contact.status}
-                          onChange={e => updateContact(contact.id, "status", e.target.value)}
-                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title="Change status"
-                        >
-                          {STATUSES.map(s => (
-                            <option key={s} value={s} className="bg-[#18181b] text-white">
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </td>
-
-                    {/* Notes */}
-                    <td className="p-2">
-                      <input 
-                        type="text" 
-                        value={contact.notes}
-                        onChange={e => updateContact(contact.id, "notes", e.target.value)}
-                        placeholder="Add notes..."
-                        className="w-full bg-transparent border border-transparent hover:border-white/15 focus:border-white/30 focus:bg-black/50 px-2.5 py-1.5 rounded-md transition-all outline-none text-zinc-300 placeholder:text-zinc-600 text-xs"
-                      />
-                    </td>
-
-                    {/* Actions */}
-                    <td className="p-2 text-center">
-                      <button 
-                        onClick={() => deleteContact(contact.id)}
-                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 mx-auto block"
-                        title="Delete Contact"
+      {contacts === null ? (
+        <PageLoader label="Loading contacts" />
+      ) : total === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-10 text-center">
+          <ShareNetwork size={28} weight="duotone" className="mx-auto text-zinc-500" />
+          <p className="mt-3 text-white font-medium">Build your launch network</p>
+          <p className="mt-1 text-sm text-zinc-500 max-w-md mx-auto">Keep track of the streamers, press and publishers you reach out to, and move them through your outreach pipeline.</p>
+          <div className="mt-5 flex justify-center gap-2">
+            <button onClick={() => setEditing("new")} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-[#FAFAFA] text-black text-xs font-semibold hover:bg-zinc-200">
+              <Plus size={14} weight="bold" /> Add contact
+            </button>
+            <button onClick={() => setImporting(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-medium border border-white/10 text-zinc-300 hover:text-white">
+              <FileArrowUp size={14} /> Import CSV
+            </button>
+          </div>
+        </div>
+      ) : view === "list" ? (
+        shown.length ? (
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] divide-y divide-white/[0.06] overflow-hidden">
+            {shown.map((c) => {
+              const p = platformOf(c.role);
+              const s = stageOf(c.status);
+              const href = contactHref(c.contact);
+              return (
+                <div key={c.id} role="button" tabIndex={0} onClick={() => setEditing(c)} onKeyDown={(e) => e.key === "Enter" && setEditing(c)} className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors">
+                  <span className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0" style={{ background: `${p.color}33`, boxShadow: `inset 0 0 0 1px ${p.color}55` }}>
+                    {initials(c.name)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-white truncate">{c.name || <span className="text-zinc-500 italic">Unnamed</span>}</p>
+                    <p className="text-xs text-zinc-500 truncate">{c.contact || c.notes || "No contact details yet"}</p>
+                  </div>
+                  <span className={`hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] ${p.badge}`}>
+                    <p.icon size={12} /> {p.label}
+                  </span>
+                  <span className="hidden lg:inline text-xs text-zinc-400 w-20 tabular-nums">{c.tier}</span>
+                  <span className="hidden lg:inline-flex items-center gap-1 text-xs text-zinc-500 w-28 truncate">{c.niche ? <><Tag size={12} /> {c.niche}</> : null}</span>
+                  {/* Quick stage change without opening the panel */}
+                  <span onClick={(e) => e.stopPropagation()} className="shrink-0">
+                    <PillSelect
+                      value={c.status}
+                      options={STAGES.map((x) => ({ value: x.key, label: x.label }))}
+                      onChange={(v) => moveTo(c.id, v)}
+                      tone={s.tone}
+                      dot={s.dot}
+                      ariaLabel={`Stage for ${c.name}`}
+                    />
+                  </span>
+                  {href ? (
+                    <a href={href} onClick={(e) => e.stopPropagation()} target={href.startsWith("mailto:") ? "_self" : "_blank"} rel="noopener noreferrer" className="p-1.5 rounded-md text-zinc-500 hover:text-white hover:bg-white/[0.06]" aria-label="Open contact link">
+                      <ArrowSquareOut size={14} />
+                    </a>
+                  ) : (
+                    <span className="w-[26px]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500 py-10 text-center">No contacts match.</p>
+        )
+      ) : (
+        /* Pipeline: drag cards between stages */
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {STAGES.filter((s) => stage === "All" || stage === s.key).map((s) => {
+            const cards = shown.filter((c) => c.status === s.key);
+            return (
+              <div
+                key={s.key}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDropStage(s.key);
+                }}
+                onDragLeave={() => setDropStage((cur) => (cur === s.key ? null : cur))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragId) moveTo(dragId, s.key);
+                  setDragId(null);
+                  setDropStage(null);
+                }}
+                className={`w-64 shrink-0 rounded-xl border p-2.5 transition-colors ${dropStage === s.key ? "border-white/30 bg-white/[0.05]" : "border-white/10 bg-white/[0.02]"}`}
+              >
+                <div className="flex items-center justify-between px-1 pb-2">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-300">
+                    <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} /> {s.label}
+                  </span>
+                  <span className="text-[11px] text-zinc-500 tabular-nums">{cards.length}</span>
+                </div>
+                <div className="space-y-2 min-h-[80px]">
+                  {cards.map((c) => {
+                    const p = platformOf(c.role);
+                    return (
+                      <div
+                        key={c.id}
+                        draggable
+                        onDragStart={() => setDragId(c.id)}
+                        onDragEnd={() => {
+                          setDragId(null);
+                          setDropStage(null);
+                        }}
+                        onClick={() => setEditing(c)}
+                        className={`rounded-lg border border-white/10 bg-[#141418] p-3 cursor-grab active:cursor-grabbing hover:border-white/20 transition-colors ${dragId === c.id ? "opacity-50" : ""}`}
                       >
-                        <Trash size={15} weight="duotone" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {/* Empty state */}
-              {!fetching && filteredContacts.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-4 py-20 text-center text-zinc-500">
-                    <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                      <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-center text-zinc-400 mb-2">
-                        <Users size={22} weight="duotone" />
-                      </div>
-                      <p className="text-sm font-semibold text-white">No contacts found</p>
-                      <p className="text-xs text-zinc-400 leading-relaxed">
-                        {contacts.length === 0 
-                          ? "Keep track of game streamers, press outlets, publishers, and freelance creators. Add your first partner or import via CSV."
-                          : "No contacts match your active search or filters. Try resetting the filters above."}
-                      </p>
-                      {contacts.length === 0 && (
-                        <div className="flex items-center gap-2 mt-3">
-                          <button
-                            onClick={addContact}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-black hover:bg-zinc-200 transition-colors"
-                          >
-                            <Plus size={14} weight="bold" /> Add First Partner
-                          </button>
-                          <button
-                            onClick={() => setIsImportModalOpen(true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-300 hover:text-white bg-white/5 border border-white/10 hover:bg-white/10 transition-colors"
-                          >
-                            <FileArrowUp size={14} weight="bold" /> Import CSV
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0" style={{ background: `${p.color}33` }}>
+                            {initials(c.name)}
+                          </span>
+                          <p className="text-sm text-white truncate">{c.name || "Unnamed"}</p>
                         </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-zinc-500">
+                          <span className="inline-flex items-center gap-1">
+                            <p.icon size={12} style={{ color: p.color }} /> {p.label}
+                          </span>
+                          <span>{c.tier}</span>
+                          {c.niche && <span className="truncate">· {c.niche}</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!cards.length && <p className="text-[11px] text-zinc-600 px-1 py-3">Drop contacts here</p>}
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
-      {/* CSV Import Modal */}
-      <CsvImportModal 
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImport={handleBatchImport}
-      />
+      {editing && (
+        <ContactDrawer
+          contact={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSave={async (d) => {
+            await saveContact(d);
+            flash(editing === "new" ? "Contact added." : "Saved.");
+          }}
+          onDelete={editing === "new" ? undefined : async () => {
+            await deleteDoc(doc(db, "contacts", editing.id));
+            flash("Contact deleted.");
+          }}
+        />
+      )}
+
+      <CsvImportModal isOpen={importing} onClose={() => setImporting(false)} onImport={importCsv} />
     </div>
   );
 }

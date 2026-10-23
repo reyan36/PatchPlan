@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Plus, ArrowRight, Trash, Heart, Lightbulb } from "@phosphor-icons/react";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, arrayUnion, arrayRemove, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { notifyNewIdea } from "@/lib/discord";
+import { excerpt, statusOf } from "./ideaMeta";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { useDirty } from "@/lib/DirtyContext";
@@ -67,9 +67,11 @@ export function IdeaBoard() {
       userId: user.uid,
       familyId: activeFamily ? activeFamily.id : null,
       title: newIdeaTitle.trim(),
-      upvotedBy: [], 
-      content: "", 
-      createdAt: serverTimestamp()
+      upvotedBy: [],
+      content: "",
+      status: "idea",
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
     });
     
     setIsModalOpen(false);
@@ -135,11 +137,14 @@ export function IdeaBoard() {
                 onClick={() => router.push(`/ideas/${idea.id}`)}
                 className="p-4 border border-border rounded-md bg-background flex items-center justify-between cursor-pointer hover:border-muted-foreground transition-colors group"
               >
-                <div>
-                  <h3 className="font-medium group-hover:text-primary transition-colors">{idea.title}</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Click to open workspace</p>
+                <div className="min-w-0">
+                  <h3 className="font-medium group-hover:text-primary transition-colors truncate">{idea.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    <span className="text-zinc-400">{statusOf(idea.status).label}</span>
+                    {excerpt(idea.content, 90) ? ` · ${excerpt(idea.content, 90)}` : ""}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 shrink-0">
                   <span className="text-sm text-muted-foreground">{votesCount} votes</span>
                   <button 
                     onClick={(e) => handleVote(e, idea.id, idea.upvotedBy || [])}

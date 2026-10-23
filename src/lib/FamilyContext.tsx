@@ -2,28 +2,30 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
-import { doc, onSnapshot, updateDoc, setDoc } from "firebase/firestore";
-import { db } from "./firebase";
 
-export type Member = { 
-  uid: string; 
-  nickname: string; 
-  role: "owner" | "worker"; 
-  email: string 
+// Firestore is only needed once someone is signed in, so it's loaded on demand.
+// Public visitors (landing, changelog, status, public pages) never download it.
+const loadFirestore = () => import("./lazyFirestore");
+
+export type Member = {
+  uid: string;
+  nickname: string;
+  role: "owner" | "worker";
+  email: string
 };
 
-export type Family = { 
-  id: string; 
-  name: string; 
-  ownerId: string; 
-  joinCode: string; 
-  members: Member[] 
+export type Family = {
+  id: string;
+  name: string;
+  ownerId: string;
+  joinCode: string;
+  members: Member[]
 };
 
-export type UserProfile = { 
-  uid: string; 
-  activeFamilyId: string | null; 
-  joinedFamilies: string[] 
+export type UserProfile = {
+  uid: string;
+  activeFamilyId: string | null;
+  joinedFamilies: string[]
 };
 
 interface FamilyContextType {
@@ -52,44 +54,66 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
     // Signing in: wait for the profile so pages don't briefly load the personal workspace.
     setLoading(true);
-    const profileRef = doc(db, "user_profiles", user.uid);
-    const unsubProfile = onSnapshot(profileRef, (snap) => {
-      if (snap.exists()) {
-        setUserProfile(snap.data() as UserProfile);
-      } else {
-        // Initialize new user profile
-        const newProfile: UserProfile = { 
-          uid: user.uid, 
-          activeFamilyId: null, 
-          joinedFamilies: [] 
-        };
-        setDoc(profileRef, newProfile);
-        setUserProfile(newProfile);
-      }
-    }, (error) => {
-      console.warn("UserProfile listener error:", error.message);
-      setLoading(false);
-    });
+    let unsubProfile = () => {};
+    let cancelled = false;
+    loadFirestore()
+      .then(({ db, doc, onSnapshot, setDoc }) => {
+        if (cancelled) return;
+        const profileRef = doc(db, "user_profiles", user.uid);
+        unsubProfile = onSnapshot(profileRef, (snap) => {
+          if (snap.exists()) {
+            setUserProfile(snap.data() as UserProfile);
+          } else {
+            // Initialize new user profile
+            const newProfile: UserProfile = {
+              uid: user.uid,
+              activeFamilyId: null,
+              joinedFamilies: []
+            };
+            setDoc(profileRef, newProfile);
+            setUserProfile(newProfile);
+          }
+        }, (error) => {
+          console.warn("UserProfile listener error:", error.message);
+          setLoading(false);
+        });
+      })
+      .catch(() => setLoading(false));
 
-    return () => unsubProfile();
+    return () => {
+      cancelled = true;
+      unsubProfile();
+    };
   }, [user]);
 
   // Listen to active family
   useEffect(() => {
     if (userProfile?.activeFamilyId) {
-      const familyRef = doc(db, "families", userProfile.activeFamilyId);
-      const unsubFamily = onSnapshot(familyRef, (snap) => {
-        if (snap.exists()) {
-          setActiveFamily({ id: snap.id, ...snap.data() } as Family);
-        } else {
-          setActiveFamily(null);
-        }
-        setLoading(false);
-      }, (error) => {
-        console.warn("Family listener error:", error.message);
-        setLoading(false);
-      });
-      return () => unsubFamily();
+      const familyId = userProfile.activeFamilyId;
+      let unsubFamily = () => {};
+      let cancelled = false;
+      loadFirestore()
+        .then(({ db, doc, onSnapshot }) => {
+          if (cancelled) return;
+          unsubFamily = onSnapshot(doc(db, "families", familyId), (snap) => {
+            if (snap.exists()) {
+              setActiveFamily({ id: snap.id, ...snap.data() } as Family);
+            } else {
+              setActiveFamily(null);
+            }
+            setLoading(false);
+          }, (error) => {
+            // e.g. removed from the studio: fall back to the personal workspace.
+            console.warn("Family listener error:", error.message);
+            setActiveFamily(null);
+            setLoading(false);
+          });
+        })
+        .catch(() => setLoading(false));
+      return () => {
+        cancelled = true;
+        unsubFamily();
+      };
     } else {
       setActiveFamily(null);
       if (userProfile !== null) {
@@ -100,6 +124,7 @@ export function FamilyProvider({ children }: { children: React.ReactNode }) {
 
   const setActiveFamilyId = async (id: string | null) => {
     if (!user) return;
+    const { db, doc, updateDoc } = await loadFirestore();
     await updateDoc(doc(db, "user_profiles", user.uid), { activeFamilyId: id });
   };
 

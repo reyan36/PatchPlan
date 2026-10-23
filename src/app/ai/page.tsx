@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Megaphone, MagnifyingGlass, Hammer, Sparkle } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { getAIStatus, type AIStatus } from "@/lib/ai/client";
 import dynamic from "next/dynamic";
 

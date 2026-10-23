@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { themeVars } from "@/lib/newsTheme";
@@ -8,7 +8,8 @@ import { publicProfile } from "@/lib/email/server";
 
 export const dynamic = "force-dynamic";
 
-const getStudio = cache(async (slug: string) => {
+// Cached for 5 minutes per studio: this page used to wait ~3 s on Firestore for every visit.
+const getStudio = unstable_cache(async (slug: string) => {
   // Preferred: server-side lookup, which sees the name the studio set in Email or its workspace name.
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     try {
@@ -39,7 +40,7 @@ const getStudio = cache(async (slug: string) => {
     theme: cfg.newsTheme || cfg.theme || "dark",
     accent: cfg.newsAccent || "",
   };
-});
+}, ["public-subscribe"], { revalidate: 300 });
 
 export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
   const s = await getStudio(params.familyId);

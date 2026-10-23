@@ -11,7 +11,7 @@ import {
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import { IntegrationsTab } from "@/features/integrations/IntegrationsTab";
@@ -407,9 +407,34 @@ function HelpSection() {
 
 function AccountSection({ onSignOut }: { onSignOut: () => void }) {
   const { user } = useAuth();
+  const { userProfile } = useFamily();
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   if (!user) return null;
+
+  // A studio whose owner deletes their account can't be managed by anyone, so owners
+  // must transfer ownership or delete their studios first.
+  const ownedStudios = async () => {
+    const ids = userProfile?.joinedFamilies || [];
+    const snaps = await Promise.all(ids.map((id) => getDoc(doc(db, "families", id)).catch(() => null)));
+    return snaps.filter((s) => s?.exists() && s.data().ownerId === user.uid).map((s) => String(s!.data()!.name || "a studio"));
+  };
+
+  const askDelete = async () => {
+    setError(null);
+    setChecking(true);
+    try {
+      const owned = await ownedStudios();
+      if (owned.length) {
+        setError(`You own ${owned.join(", ")}. In Teams, transfer ownership or delete ${owned.length === 1 ? "it" : "them"} before deleting your account.`);
+        return;
+      }
+      setConfirm(true);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const remove = async () => {
     try {
@@ -427,7 +452,7 @@ function AccountSection({ onSignOut }: { onSignOut: () => void }) {
       </Section>
       <Section title="Delete account" description="Removes your login permanently. Workspace data isn't deleted automatically." danger>
         {error && <p className="text-xs text-red-300 mb-3">{error}</p>}
-        <button onClick={() => setConfirm(true)} className="px-3 py-1.5 rounded-md bg-red-500/90 text-white text-xs font-medium hover:bg-red-500">Delete account</button>
+        <button onClick={askDelete} disabled={checking} className="px-3 py-1.5 rounded-md bg-red-500/90 text-white text-xs font-medium hover:bg-red-500 disabled:opacity-50">{checking ? "Checking…" : "Delete account"}</button>
       </Section>
       <Modal isOpen={confirm} onClose={() => setConfirm(false)} title="Delete your account?">
         <p className="text-sm text-zinc-400 mb-5">This permanently removes your login. It can&apos;t be undone.</p>

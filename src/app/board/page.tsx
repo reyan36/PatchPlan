@@ -4,14 +4,17 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, DotsThree, ChatCircle, TextAlignLeft, SlidersHorizontal, MagnifyingGlass, Funnel, X, Trash, UserCircle, Megaphone } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Member } from "@/lib/FamilyContext";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { notifyTaskCompleted } from "@/lib/discord";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
-import { TaskSidePanel } from "@/features/task-management/TaskSidePanel";
+import dynamic from "next/dynamic";
+
+// The rich-text editor in the task panel is large; it loads when a task is opened.
+const TaskSidePanel = dynamic(() => import("@/features/task-management/TaskSidePanel").then((m) => m.TaskSidePanel), { ssr: false });
 
 type Tag = "Art" | "Code" | "Audio" | "Design" | "Bug" | "Marketing" | "Other";
 

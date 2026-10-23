@@ -3,11 +3,12 @@ import { collection, query, where, getDocs, doc, getDoc } from "firebase/firesto
 import Link from "next/link";
 import { MagnifyingGlass, DiscordLogo, XLogo, Globe, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
-import { cache } from "react";
-import { SubscribeForm } from "@/components/email/SubscribeForm";
+import { unstable_cache } from "next/cache";
+import { PublicFooter } from "@/components/email/PublicFooter";
 import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate } from "@/lib/newsTheme";
 
-// Always serve fresh data when articles or settings are updated
+// Search and category filters use the query string, so the page renders per request, but the
+// studio's articles and settings are cached for a minute: one Firestore read burst per minute.
 export const dynamic = "force-dynamic";
 
 type Article = {
@@ -34,7 +35,7 @@ type ConfigData = {
   logoUrl: string;
 };
 
-const getNewsData = cache(async (slug: string) => {
+const getNewsData = unstable_cache(async (slug: string) => {
   let familyId = slug;
   try {
     const configSnap = await getDocs(query(collection(db, "public_configs"), where("newsSlug", "==", slug)));
@@ -122,7 +123,7 @@ const getNewsData = cache(async (slug: string) => {
   }
 
   return { familyName, articles, config, expired };
-});
+}, ["public-news"], { revalidate: 60 });
 
 export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
   const { familyName, config } = await getNewsData(params.familyId);
@@ -359,18 +360,7 @@ export default async function PublicNewsPage({ params, searchParams }: { params:
         )}
       </main>
 
-      <section className="max-w-6xl w-full mx-auto px-6 pb-16">
-        <SubscribeForm scopeId={params.familyId} source="news" studioName={familyName} className="bg-[var(--pp-surface)] max-w-2xl mx-auto" />
-      </section>
-
-      <footer className="border-t border-[var(--pp-border)]">
-        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--pp-muted)]">
-          <span suppressHydrationWarning>&copy; {new Date().getFullYear()} {familyName}</span>
-          <span>
-            Powered by <span className="font-medium text-[var(--pp-fg)]">PatchPlan</span>
-          </span>
-        </div>
-      </footer>
+      <PublicFooter scopeId={params.familyId} source="news" studioName={familyName} />
     </div>
   );
 }

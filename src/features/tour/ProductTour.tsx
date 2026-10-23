@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import Link from "next/link";
+import { Mascot } from "./Mascot";
 import {
-  Question, X, Kanban, Lightbulb, Compass, Newspaper, Sparkle, EnvelopeSimple, ShareNetwork, Users, Gear, ArrowRight, ArrowLeft, Play, CheckCircle,
+  X, Kanban, Lightbulb, Compass, Newspaper, Sparkle, EnvelopeSimple, ShareNetwork, Users, Gear, ArrowRight, ArrowLeft, Play, CheckCircle, Flask,
 } from "@phosphor-icons/react";
 
 export const TOUR_SEEN_KEY = "pp-tour-seen";
@@ -13,6 +14,7 @@ type Step = { target?: string; title: string; body: string };
 
 export const FEATURES = [
   { key: "board", href: "/board", icon: Kanban, title: "Production board", body: "Art, Code, Audio, Design and Bug tasks moving through your pipeline. Drag cards between columns; moving to Done pings Discord." },
+  { key: "beta", href: "/beta", icon: Flask, title: "Beta testers", body: "Share a beta page, approve testers, and get bug reports with screenshots that turn into board tasks in one click." },
   { key: "ideas", href: "/ideas", icon: Lightbulb, title: "Ideas & design docs", body: "Living GDDs with rich text and an infinite drawing canvas for level layouts and mechanics." },
   { key: "roadmap", href: "/roadmap", icon: Compass, title: "Public roadmap", body: "Plan what's next and share a public roadmap link with players, backers and publishers." },
   { key: "news", href: "/news", icon: Newspaper, title: "News & patch notes", body: "Write devlogs and patch notes, then publish them to your public news page." },
@@ -175,23 +177,23 @@ export function DashboardGuide() {
   return (
     <>
       {welcome && !touring && (
-        <div className="fixed bottom-24 right-5 z-40 w-[320px] max-w-[calc(100vw-40px)] rounded-xl border border-white/10 bg-[#141418] shadow-2xl p-4 pp-fade">
+        <div className="fixed bottom-[86px] right-5 z-40 w-[300px] max-w-[calc(100vw-40px)] rounded-xl border border-white/10 bg-[#141418] shadow-2xl p-4 pp-fade">
           <div className="flex items-start gap-3">
-            <span className="w-8 h-8 rounded-lg bg-[#c8ff00]/15 text-[#c8ff00] flex items-center justify-center shrink-0"><Play size={14} weight="fill" /></span>
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-white">New here? Take the tour</h3>
-              <p className="text-xs text-zinc-400 mt-1">A one-minute walkthrough of boards, roadmaps, AI, email and more.</p>
+              <h3 className="text-sm font-semibold text-white">Hi! New here?</h3>
+              <p className="text-xs text-zinc-400 mt-1">I can show you around in about a minute: boards, roadmaps, AI, email and more.</p>
               <div className="flex gap-2 mt-3">
                 <button onClick={start} className="px-3 py-1.5 rounded-md bg-[#FAFAFA] text-black text-xs font-semibold hover:bg-zinc-200">Start tour</button>
                 <button onClick={finish} className="px-3 py-1.5 rounded-md text-xs text-zinc-400 hover:text-white">Maybe later</button>
               </div>
             </div>
           </div>
+          <span aria-hidden className="absolute -bottom-[7px] right-9 w-3 h-3 rotate-45 bg-[#141418] border-r border-b border-white/10" />
         </div>
       )}
 
       {open && (
-        <div className="fixed bottom-20 right-5 z-40 w-[360px] max-w-[calc(100vw-40px)] max-h-[70vh] overflow-y-auto rounded-xl border border-white/10 bg-[#141418] shadow-2xl pp-fade">
+        <div className="fixed bottom-[86px] right-5 z-40 w-[360px] max-w-[calc(100vw-40px)] max-h-[70vh] overflow-y-auto rounded-xl border border-white/10 bg-[#141418] shadow-2xl pp-fade">
           <div className="sticky top-0 bg-[#141418] px-4 pt-4 pb-3 border-b border-white/[0.06]">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-white">Feature guide</h3>
@@ -224,17 +226,28 @@ export function DashboardGuide() {
         </div>
       )}
 
+      {/* The mascot opens the feature guide. */}
       <button
         data-tour="guide-button"
         onClick={() => {
           setOpen((v) => !v);
           setWelcome(false);
         }}
-        className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 pl-3 pr-4 py-2.5 rounded-full border border-white/10 bg-[#1a1a1e]/95 backdrop-blur text-sm font-medium text-zinc-100 shadow-[0_8px_30px_rgba(0,0,0,0.5)] hover:border-white/25"
+        className="group fixed bottom-4 right-4 z-40 rounded-full p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c8ff00]/60"
         aria-expanded={open}
+        aria-label={open ? "Close the feature guide" : "Open the feature guide"}
       >
-        {open ? <X size={16} /> : <Question size={16} weight="duotone" className="text-[#c8ff00]" />}
-        Guide
+        {!open && !welcome && (
+          <span className="pointer-events-none absolute right-full top-1/2 -translate-y-1/2 mr-2 whitespace-nowrap rounded-full border border-white/10 bg-[#1a1a1e] px-3 py-1.5 text-xs font-medium text-zinc-100 opacity-0 translate-x-1 shadow-lg transition-all group-hover:opacity-100 group-hover:translate-x-0">
+            Need a hand?
+          </span>
+        )}
+        <Mascot size={58} excited={welcome} />
+        {open && (
+          <span className="absolute -top-0.5 -left-0.5 w-5 h-5 rounded-full bg-[#1a1a1e] border border-white/15 flex items-center justify-center text-zinc-300">
+            <X size={11} weight="bold" />
+          </span>
+        )}
       </button>
 
       {touring && <Tour onClose={finish} />}

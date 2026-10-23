@@ -6,7 +6,7 @@ import { EnvelopeSimple, Users, PaperPlaneTilt, Gear, ChartLine, Plus, CalendarC
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { Modal } from "@/components/ui/Modal";
 import { emailFetch, getEmailStatus, type EmailStatus } from "@/lib/email/client";
 import { DEFAULT_SETTINGS, EMAIL_LISTS, newBlockId, type Audience, type Campaign, type EmailBlock, type EmailSettings, type Subscriber } from "@/lib/email/types";

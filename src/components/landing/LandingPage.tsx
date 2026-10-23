@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -18,13 +16,12 @@ import {
   Globe,
 } from "@phosphor-icons/react";
 import { CookieBanner } from "./CookieBanner";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { AISection } from "./AISection";
 import { HeroGrid } from "./HeroGrid";
 import { FeatureBento } from "./FeatureBento";
 
 import { Logo } from "@/components/ui/Logo";
-if (typeof window !== "undefined") gsap.registerPlugin(ScrollTrigger);
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const HERO_LINES = [["The", "project", "manager"], ["built", "for", "game", "devs."]];
@@ -41,39 +38,34 @@ export function LandingPage() {
   const currentYear = new Date().getFullYear();
   const rootRef = useRef<HTMLDivElement>(null);
 
+  // Scroll reveals with one IntersectionObserver and CSS transitions (see globals.css), instead
+  // of an animation library: nothing runs per frame on the main thread. The hero intro is pure CSS.
   useIsoLayoutEffect(() => {
-    const mm = gsap.matchMedia(rootRef.current ?? undefined);
-    mm.add("(prefers-reduced-motion: no-preference)", () => {
-      // Hero intro
-      const tl = gsap.timeline({ defaults: { ease: "power4.out" } });
-      tl.from("[data-nav]", { y: -40, opacity: 0, duration: 0.8 })
-        .from("[data-hero-word]", { yPercent: 115, rotate: 6, duration: 1, stagger: 0.07 }, 0.1)
-        .from("[data-hero-fade]", { y: 18, opacity: 0, duration: 0.8, stagger: 0.1 }, 0.55);
-
-      // Scroll reveals
-      gsap.utils.toArray<HTMLElement>("[data-reveal]").forEach((el) => {
-        gsap.from(el, {
-          y: 40,
-          opacity: 0,
-          duration: 0.9,
-          ease: "power3.out",
-          scrollTrigger: { trigger: el, start: "top 85%", once: true },
-        });
-      });
-
-      ScrollTrigger.batch("[data-reveal-item]", {
-        start: "top 88%",
-        once: true,
-        onEnter: (els) =>
-          gsap.fromTo(
-            els,
-            { y: 50, opacity: 0, scale: 0.96 },
-            { y: 0, opacity: 1, scale: 1, duration: 0.9, ease: "power3.out", stagger: 0.1, overwrite: true }
-          ),
-      });
-      gsap.set("[data-reveal-item]", { opacity: 0 });
-    });
-    return () => mm.revert();
+    const root = rootRef.current;
+    if (!root || !("IntersectionObserver" in window) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    root.classList.add("pp-reveal-armed");
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries
+          .filter((e) => e.isIntersecting)
+          .forEach((e, i) => {
+            const el = e.target as HTMLElement;
+            // Cards entering together come in one after another.
+            if (el.hasAttribute("data-reveal-item") && i > 0) {
+              el.style.transitionDelay = `${i * 100}ms`;
+              setTimeout(() => (el.style.transitionDelay = ""), 1000 + i * 100);
+            }
+            el.classList.add("pp-in");
+            io.unobserve(el);
+          });
+      },
+      { rootMargin: "0px 0px -12% 0px" }
+    );
+    root.querySelectorAll("[data-reveal], [data-reveal-item]").forEach((el) => io.observe(el));
+    return () => {
+      io.disconnect();
+      root.classList.remove("pp-reveal-armed");
+    };
   }, []);
 
   const faqs = [
@@ -118,7 +110,7 @@ export function LandingPage() {
   return (
     <div ref={rootRef} className="relative min-h-screen bg-[#121212] text-[#FAFAFA] selection:bg-white/20 selection:text-white font-sans antialiased overflow-x-hidden">
       {/* ─── Floating Island Navbar ─── */}
-      <header data-nav className="fixed top-4 inset-x-0 z-40 max-w-[860px] mx-auto px-4">
+      <header data-nav className="pp-nav-in fixed top-4 inset-x-0 z-40 max-w-[860px] mx-auto px-4">
         <nav className="bg-[#1a1a1e]/80 border border-white/[0.08] backdrop-blur-2xl rounded-full px-4 py-2 flex items-center justify-between shadow-[0_4px_24px_rgba(0,0,0,0.6)]">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
@@ -173,18 +165,18 @@ export function LandingPage() {
             <span key={li} className="block">
               {line.map((w, wi) => (
                 <span key={wi} className="inline-block overflow-hidden align-bottom pb-[0.08em] -mb-[0.08em] mr-[0.24em] last:mr-0">
-                  <span data-hero-word className="inline-block origin-bottom-left">{w}</span>
+                  <span data-hero-word className="pp-word-in inline-block origin-bottom-left" style={{ ["--i" as string]: HERO_LINES.slice(0, li).reduce((n, l) => n + l.length, 0) + wi }}>{w}</span>
                 </span>
               ))}
             </span>
           ))}
         </h1>
 
-        <p data-hero-fade className="text-base sm:text-lg text-neutral-400 max-w-lg leading-relaxed mb-10">
+        <p data-hero-fade className="pp-fade-up text-base sm:text-lg text-neutral-400 max-w-lg leading-relaxed mb-10">
           Sprint boards, public roadmaps, game design docs, and Discord notifications — without the enterprise bloat.
         </p>
 
-        <div data-hero-fade className="flex flex-col sm:flex-row items-center gap-3">
+        <div data-hero-fade className="pp-fade-up flex flex-col sm:flex-row items-center gap-3" style={{ ["--i" as string]: 1 }}>
           <button
             onClick={() => setAuthMode("signup")}
             className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-white text-[#0a0a0a] font-semibold text-sm hover:bg-neutral-200 transition-colors active:scale-[0.97] flex items-center justify-center gap-2"

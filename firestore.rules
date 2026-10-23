@@ -1,0 +1,278 @@
+rules_version = '2';
+
+// PatchPlan Firestore rules.
+//
+// Workspaces ("scopes") are either a studio (a doc in `families`) or a person's private
+// workspace (their uid). Most docs are scoped like tasks: `familyId` for studio docs, or
+// `userId` with no `familyId` for personal docs. Some use a `scopeId` field or the doc id.
+//
+// Studio membership is checked with `families/{id}.memberIds` (kept in sync by the app and
+// /api/teams/join). Studios created before memberIds existed still work for their owner;
+// run scripts/backfill-member-ids.mjs once so existing members keep access.
+//
+// Collections only the server touches (Firebase Admin bypasses these rules) are denied here.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function family(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data;
+    }
+
+    function isMember(familyId) {
+      return signedIn()
+        && familyId is string
+        && exists(/databases/$(database)/documents/families/$(familyId))
+        && (request.auth.uid in family(familyId).get('memberIds', [])
+            || family(familyId).get('ownerId', '') == request.auth.uid);
+    }
+
+    // A workspace id: the caller's own uid (personal) or a studio they belong to.
+    function inScope(scopeId) {
+      return signedIn() && (scopeId == request.auth.uid || isMember(scopeId));
+    }
+
+    // Docs scoped like tasks. Creators can always read what they made.
+    // Plain field access (not .get()) so list queries filtered on userId/familyId can be checked.
+    function canAccess(d) {
+      return signedIn() && (d.userId == request.auth.uid || isMember(d.familyId));
+    }
+
+    // New or changed docs must land in a workspace the caller belongs to.
+    function validScope(d) {
+      return signedIn()
+        && ((d.get('familyId', null) == null && d.get('userId', '') == request.auth.uid)
+            || isMember(d.get('familyId', null)));
+    }
+
+    // Standard rules for familyId/userId collections.
+    function scopedRead() {
+      return canAccess(resource.data);
+    }
+    function scopedCreate() {
+      return validScope(request.resource.data);
+    }
+    function scopedUpdate() {
+      return canAccess(resource.data) && validScope(request.resource.data);
+    }
+
+    // ── Accounts and studios ──────────────────────────────────────────────────
+
+    match /user_profiles/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /families/{familyId} {
+      allow read: if isMember(familyId);
+      // Creating a studio: you're its owner and only member.
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid];
+      // The owner can edit the studio but can't hand ownership away from the client.
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId;
+      // Any other member may only remove themselves (leaving the studio).
+      allow update: if isMember(familyId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'memberIds'])
+        && request.resource.data.get('memberIds', []) == resource.data.get('memberIds', []).removeAll([request.auth.uid]);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      // Joining with a code goes through /api/teams/join, never the client.
+    }
+
+    // ── Workspace content (familyId / userId) ─────────────────────────────────
+
+    match /tasks/{id} {
+      // Inbox and the navbar list tasks assigned to you across all your studios.
+      allow read: if scopedRead() || (signedIn() && resource.data.assigneeId == request.auth.uid);
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+      allow delete: if scopedRead();
+    }
+
+    match /ideas/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
+    match /campaigns/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
+    match /signals/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
+    match /modules/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
+    match /module_rows/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
+    // Public pages read published articles; drafts stay private to the workspace.
+    match /articles/{id} {
+      allow read: if resource.data.status == 'published' || scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+      allow delete: if scopedRead();
+    }
+
+    // Public roadmaps show every item of a studio's roadmap.
+    match /roadmap/{id} {
+      allow read: if true;
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+      allow delete: if canAccess(resource.data);
+    }
+
+    // Older personal-only collections.
+    match /projects/{id} {
+      allow read, update, delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+    }
+    match /teams/{id} {
+      allow read, update, delete: if signedIn() && resource.data.userId == request.auth.uid;
+      allow create: if signedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+    }
+
+    // ── Workspace content (scopeId field) ─────────────────────────────────────
+
+    match /contacts/{id} {
+      allow read, delete: if inScope(resource.data.scopeId);
+      allow create: if inScope(request.resource.data.get('scopeId', ''));
+      allow update: if inScope(resource.data.scopeId) && request.resource.data.scopeId == resource.data.scopeId;
+    }
+
+    // Player emails. Sign-ups and unsubscribes go through the server.
+    match /subscribers/{id} {
+      allow read, delete: if inScope(resource.data.scopeId);
+      allow create: if inScope(request.resource.data.get('scopeId', ''));
+      allow update: if inScope(resource.data.scopeId) && request.resource.data.scopeId == resource.data.scopeId;
+    }
+
+    // ── Per-workspace settings (doc id = workspace) ───────────────────────────
+
+    match /board_configs/{scopeId} {
+      allow read, write: if inScope(scopeId);
+    }
+
+    match /integrations/{scopeId} {
+      // Holds the Discord webhook and feedback sources: members only.
+      allow read, write: if inScope(scopeId);
+    }
+
+    match /email_settings/{scopeId} {
+      allow read, write: if inScope(scopeId);
+    }
+
+    // Public pages read these (names, themes, slugs, beta intro).
+    match /public_configs/{scopeId} {
+      allow read: if true;
+      allow write: if inScope(scopeId);
+    }
+
+    match /roadmap_configs/{scopeId} {
+      allow read: if true;
+      allow write: if inScope(scopeId);
+    }
+
+    // ── Beta testers (see docs/BETA.md) ───────────────────────────────────────
+
+    function betaTesterDoc(scopeId) {
+      return /databases/$(database)/documents/beta_testers/$(scopeId + '_' + request.auth.uid);
+    }
+    function betaApproved(scopeId) {
+      return signedIn() && get(betaTesterDoc(scopeId)).data.status == 'approved';
+    }
+    function maxStr(v, n) {
+      return v is string && v.size() <= n;
+    }
+
+    match /beta_testers/{id} {
+      // A tester can read only their own record (also works before it exists).
+      allow get: if signedIn() && id.matches('.+_' + request.auth.uid);
+      allow create: if signedIn()
+        && id == request.resource.data.scopeId + '_' + request.auth.uid
+        && get(/databases/$(database)/documents/public_configs/$(request.resource.data.scopeId)).data.get('betaOpen', false) == true
+        && request.resource.data.keys().hasOnly(['scopeId', 'uid', 'name', 'email', 'platforms', 'device', 'note', 'discord', 'agreed', 'status', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.get('email', '')
+        && request.resource.data.status == 'pending'
+        && request.resource.data.agreed == true
+        && maxStr(request.resource.data.name, 80) && request.resource.data.name.size() > 0
+        && request.resource.data.platforms is list && request.resource.data.platforms.size() > 0 && request.resource.data.platforms.size() <= 9
+        && maxStr(request.resource.data.device, 160)
+        && maxStr(request.resource.data.note, 600)
+        && maxStr(request.resource.data.discord, 40)
+        && request.resource.data.createdAt == request.time;
+      allow list, update, delete: if false; // owners approve through /api/beta
+    }
+
+    match /beta_programs/{scopeId} {
+      allow read: if betaApproved(scopeId);
+      allow write: if false;
+    }
+
+    match /beta_reports/{id} {
+      allow read: if signedIn() && resource.data.testerUid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.testerUid == request.auth.uid
+        && betaApproved(request.resource.data.scopeId)
+        && request.resource.data.keys().hasOnly(['scopeId', 'testerUid', 'testerName', 'title', 'category', 'severity', 'description', 'steps', 'expected', 'platform', 'build', 'videoUrl', 'logs', 'files', 'status', 'reply', 'taskId', 'createdAt'])
+        && request.resource.data.status == 'new'
+        && request.resource.data.reply == ''
+        && request.resource.data.taskId == null
+        && request.resource.data.category in ['bug', 'crash', 'performance', 'visual', 'audio', 'gameplay', 'suggestion']
+        && request.resource.data.severity in ['low', 'medium', 'high', 'blocker']
+        && maxStr(request.resource.data.title, 140) && request.resource.data.title.size() > 0
+        && maxStr(request.resource.data.testerName, 80)
+        && maxStr(request.resource.data.description, 4000) && request.resource.data.description.size() > 0
+        && maxStr(request.resource.data.steps, 4000)
+        && maxStr(request.resource.data.expected, 2000)
+        && maxStr(request.resource.data.platform, 40)
+        && maxStr(request.resource.data.build, 40)
+        && maxStr(request.resource.data.videoUrl, 500)
+        && maxStr(request.resource.data.logs, 20000)
+        && request.resource.data.files is list && request.resource.data.files.size() <= 4
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false; // owners act through /api/beta
+    }
+
+    match /beta_files/{id} {
+      allow read: if signedIn() && resource.data.testerUid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.testerUid == request.auth.uid
+        && betaApproved(request.resource.data.scopeId)
+        && request.resource.data.keys().hasOnly(['scopeId', 'testerUid', 'reportId', 'data', 'createdAt'])
+        && id.matches(request.resource.data.reportId + '_[0-3]')
+        // Files are only written together with their report, by the same tester.
+        && getAfter(/databases/$(database)/documents/beta_reports/$(request.resource.data.reportId)).data.testerUid == request.auth.uid
+        && request.resource.data.data is string
+        && request.resource.data.data.size() <= 900000
+        && request.resource.data.data.matches('data:image/(webp|jpeg|png);base64,.*')
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ── Server only ───────────────────────────────────────────────────────────
+    // email_domains, email_domain_claims, changelog and anything not listed above:
+    // no client access. (No catch-all: unlisted collections are denied by default.)
+  }
+}

@@ -1,7 +1,5 @@
 "use client";
 
-import { IdeaBoard } from "@/features/idea-management/IdeaBoard";
-import { TeamOverview } from "@/features/team-management/TeamOverview";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkle, Megaphone, Hammer, ArrowRight } from "@phosphor-icons/react";
@@ -12,6 +10,10 @@ import { useFamily } from "@/lib/FamilyContext";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { AppSplash } from "@/components/ui/AppSplash";
 import dynamic from "next/dynamic";
+
+// Dashboard widgets use Firestore; landing visitors never download them.
+const IdeaBoard = dynamic(() => import("@/features/idea-management/IdeaBoard").then((m) => m.IdeaBoard), { loading: () => <Skeleton className="h-64 w-full" /> });
+const TeamOverview = dynamic(() => import("@/features/team-management/TeamOverview").then((m) => m.TeamOverview), { loading: () => <Skeleton className="h-96 w-full" /> });
 
 // Signed-in users never download the landing page (and its animation libraries), and vice versa.
 const LandingPage = dynamic(() => import("@/components/landing/LandingPage").then((m) => m.LandingPage), {
@@ -27,8 +29,10 @@ export default function Home() {
   if (loading || (user && familyLoading)) {
     // Firebase is still restoring the session. Show what this browser most likely gets,
     // instead of a dashboard skeleton that then flips to the landing page.
-    if (!user && signedInHint === false) return <LandingPage />;
-    if (!user && signedInHint === null) return <AppSplash />;
+    // Signed out last time, or a first visit (almost always signed out): show the landing page
+    // right away instead of waiting for Firebase. Only "not read yet" shows the splash.
+    if (!user && (signedInHint === false || signedInHint === null)) return <LandingPage />;
+    if (!user && signedInHint === undefined) return <AppSplash />;
     return (
       <div className="space-y-8">
         <header className="py-6">

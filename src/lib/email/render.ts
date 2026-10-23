@@ -133,7 +133,7 @@ ${body}
 </table>
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px"><tr><td style="padding:20px 32px;font-size:12px;line-height:1.6;color:${c.muted};text-align:center;font-family:${font}">
 ${input.preferencesNote ? `${esc(input.preferencesNote)}<br>` : ""}${input.address ? `${esc(input.address)}<br>` : ""}
-<a href="${safeUrl(input.unsubscribeUrl)}" style="color:${c.muted};text-decoration:underline">Unsubscribe</a> · Sent with PatchPlan
+${input.unsubscribeUrl ? `<a href="${safeUrl(input.unsubscribeUrl)}" style="color:${c.muted};text-decoration:underline">Unsubscribe</a> · ` : ""}Sent with PatchPlan
 </td></tr></table>
 </td></tr></table></body></html>`;
 }
@@ -148,6 +148,6 @@ export function renderText(input: RenderInput): string {
     if (b.type === "articles") b.items.forEach((a) => lines.push(`- ${a.title}: ${a.url}`));
     if (b.type === "changelog") lines.push(b.title, ...b.items.map((i) => `- ${i}`), "");
   });
-  lines.push("", input.address || "", `Unsubscribe: ${input.unsubscribeUrl}`);
+  lines.push("", input.address || "", input.unsubscribeUrl ? `Unsubscribe: ${input.unsubscribeUrl}` : "");
   return lines.join("\n");
 }

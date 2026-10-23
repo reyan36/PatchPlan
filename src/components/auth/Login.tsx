@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import { PatchGrid } from "./PatchGrid";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/firebase-app";
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,

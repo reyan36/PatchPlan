@@ -119,19 +119,30 @@ export async function studioName(scopeId: string) {
 export async function publicProfile(idOrSlug: string) {
   const db = adminDb();
   let scopeId = idOrSlug;
-  const direct = await db.collection("public_configs").doc(idOrSlug).get();
-  if (!direct.exists) {
-    for (const field of ["newsSlug", "roadmapSlug"]) {
-      const hit = await db.collection("public_configs").where(field, "==", idOrSlug).limit(1).get();
-      if (!hit.empty) {
-        scopeId = hit.docs[0].id;
-        break;
-      }
-    }
+  // Id and both slug lookups in parallel (one round trip instead of up to three).
+  const [direct, byNews, byRoadmap] = await Promise.all([
+    db.collection("public_configs").doc(idOrSlug).get(),
+    db.collection("public_configs").where("newsSlug", "==", idOrSlug).limit(1).get(),
+    db.collection("public_configs").where("roadmapSlug", "==", idOrSlug).limit(1).get(),
+  ]);
+  let found = direct.exists;
+  const hit = !found && (!byNews.empty ? byNews : !byRoadmap.empty ? byRoadmap : null);
+  if (hit) {
+    scopeId = hit.docs[0].id;
+    found = true;
   }
   const [cfg, name] = await Promise.all([db.collection("public_configs").doc(scopeId).get(), studioName(scopeId)]);
   const c = cfg.data() || {};
-  return { scopeId, name, logoUrl: c.newsLogoUrl || c.logoUrl || "", theme: c.newsTheme || c.theme || "dark", accent: c.newsAccent || "" };
+  return {
+    scopeId,
+    found,
+    name,
+    logoUrl: c.newsLogoUrl || c.logoUrl || "",
+    theme: c.newsTheme || c.theme || "dark",
+    accent: c.newsAccent || "",
+    betaOpen: !!c.betaOpen,
+    betaIntro: String(c.betaIntro || ""),
+  };
 }
 
 type Outgoing = { to: string; subject: string; html: string; text: string; unsubscribeUrl: string };
@@ -156,7 +167,10 @@ async function resendBatch(fromName: string, replyTo: string, messages: Outgoing
           html: m.html,
           text: m.text,
           ...(replyTo ? { reply_to: replyTo } : {}),
-          headers: { "List-Unsubscribe": `<${m.unsubscribeUrl.replace("/p/unsubscribe", "/api/email/unsubscribe")}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+          // Account emails (e.g. beta approval) have no list to leave, so no unsubscribe headers.
+          ...(m.unsubscribeUrl
+            ? { headers: { "List-Unsubscribe": `<${m.unsubscribeUrl.replace("/p/unsubscribe", "/api/email/unsubscribe")}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } }
+            : {}),
         }))
       ),
     });
@@ -231,6 +245,13 @@ export async function sendTest(scopeId: string, to: string, base: string, email:
   await sendAs(scopeId, settings.fromName || name, settings.replyTo, [
     { to, subject: `[Test] ${email.subject}`, html: renderEmail(doc), text: renderText(doc), unsubscribeUrl: `${base}/p/unsubscribe?test=1` },
   ]);
+}
+
+/** One account email to one person (e.g. "you're in the beta"), from the studio's sender, without an unsubscribe link. */
+export async function sendTransactional(scopeId: string, to: string, subject: string, blocks: EmailBlock[]) {
+  const [settings, name] = await Promise.all([loadSettings(scopeId), studioName(scopeId)]);
+  const doc = { subject, preheader: "", blocks, theme: settings.theme, studioName: name, address: settings.address, unsubscribeUrl: "" };
+  await sendAs(scopeId, settings.fromName || name, settings.replyTo, [{ to, subject, html: renderEmail(doc), text: renderText(doc), unsubscribeUrl: "" }]);
 }
 
 /** Wraps a route with JSON errors. */

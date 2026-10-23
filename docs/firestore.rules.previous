@@ -1,0 +1,59 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // User profiles & settings
+    match /user_profiles/{userId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Teams / Families workspace
+    match /families/{familyId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Tasks & Board
+    match /tasks/{taskId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /board_configs/{configId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Ideas & Votes
+    match /ideas/{ideaId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Studio News (Public can read published articles)
+    match /articles/{articleId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Roadmaps (Public can view public roadmap)
+    match /roadmap/{itemId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    match /roadmap_configs/{configId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Public link configuration
+    match /public_configs/{configId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Fallback for all other collections
+    match /{document=**} {
+      allow read, write: if isAuthenticated();
+    }
+  }
+}

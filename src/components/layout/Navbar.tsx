@@ -19,12 +19,11 @@ import {
   EnvelopeSimple,
   CaretDown,
   Play,
+  Flask,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/AuthContext';
 import { useDirty } from '@/lib/DirtyContext';
 import { useFamily } from '@/lib/FamilyContext';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Logo } from "@/components/ui/Logo";
 
 export default function Navbar() {
@@ -39,16 +38,25 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) return;
 
-    const q = query(collection(db, "tasks"), where("assigneeId", "==", user.uid));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const pending = snapshot.docs.filter(doc => doc.data().column !== "Done").length;
-      setPendingTasksCount(pending);
-    }, (error) => {
-      // Graceful error handling for missing permissions or ad blockers
-      console.warn("Navbar tasks listener:", error.message);
-    });
+    // Firestore loads on demand so the navbar doesn't add it to every page's first download.
+    let unsubscribe = () => {};
+    let cancelled = false;
+    import("@/lib/lazyFirestore").then(({ db, collection, query, where, onSnapshot }) => {
+      if (cancelled) return;
+      const q = query(collection(db, "tasks"), where("assigneeId", "==", user.uid));
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const pending = snapshot.docs.filter(doc => doc.data().column !== "Done").length;
+        setPendingTasksCount(pending);
+      }, (error) => {
+        // Graceful error handling for missing permissions or ad blockers
+        console.warn("Navbar tasks listener:", error.message);
+      });
+    }).catch(() => {});
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [user]);
 
   // Close the account menu on outside click / Escape.
@@ -77,6 +85,7 @@ export default function Navbar() {
     { name: 'Roadmap', href: '/roadmap', icon: Compass, active: pathname?.startsWith('/roadmap') },
     { name: 'News', href: '/news', icon: Newspaper, active: pathname?.startsWith('/news') },
     { name: 'Board', href: '/board', icon: Kanban, active: pathname?.startsWith('/board') },
+    { name: 'Beta', href: '/beta', icon: Flask, active: pathname?.startsWith('/beta') },
     { name: 'AI', href: '/ai', icon: Sparkle, active: pathname?.startsWith('/ai') || pathname?.startsWith('/modules') },
     { name: 'Email', href: '/email', icon: EnvelopeSimple, active: pathname?.startsWith('/email') },
     { name: 'Network', href: '/marketing', icon: ShareNetwork, active: pathname?.startsWith('/marketing') },

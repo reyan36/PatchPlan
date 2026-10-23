@@ -1,6 +1,6 @@
 "use client";
 
-import { auth } from "@/lib/firebase";
+import { auth } from "@/lib/firebase-app";
 
 /** POSTs to an /api/email route with the user's Firebase ID token. */
 export async function emailFetch<T>(path: string, body: unknown): Promise<T> {

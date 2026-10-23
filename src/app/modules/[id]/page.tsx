@@ -8,7 +8,7 @@ import { ArrowLeft, Trash } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { Modal } from "@/components/ui/Modal";
 import type { ModuleSchema } from "@/lib/ai/types";
 import { MODULE_ICONS, ModuleRenderer, emptyRow, type ModuleRow } from "@/features/ai/ModuleRenderer";

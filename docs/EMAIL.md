@@ -51,7 +51,7 @@ Notes:
 
 ## Firestore rules
 
-Studio members need to read and write these collections from the browser. Scope them the same way as the existing collections:
+These are covered by [`firestore.rules`](../firestore.rules) (see [SECURITY.md](SECURITY.md)). Studio members read and write them from the browser, scoped like the other collections:
 
 - `subscribers`: `scopeId` is the workspace (family id, or the user's uid for personal workspaces)
 - `campaigns`: `familyId` / `userId`, like `tasks`

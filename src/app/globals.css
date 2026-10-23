@@ -98,7 +98,43 @@ li[data-type="taskItem"][data-checked="true"] > div {
 .pp-stagger-in { animation: pp-stagger-in 0.5s cubic-bezier(0.215, 0.61, 0.355, 1) both; animation-delay: calc(150ms + var(--i, 0) * 50ms); }
 .pp-swap-in { animation: pp-swap-in 0.4s cubic-bezier(0.215, 0.61, 0.355, 1) both; }
 
+/* Landing intro: CSS so it starts with the first paint instead of waiting for JavaScript. */
+@keyframes pp-nav-in { from { opacity: 0; transform: translateY(-40px); } to { opacity: 1; transform: none; } }
+@keyframes pp-word-in { from { transform: translateY(115%) rotate(6deg); } to { transform: none; } }
+@keyframes pp-fade-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.pp-nav-in { animation: pp-nav-in 0.8s cubic-bezier(0.23, 1, 0.32, 1) both; }
+.pp-word-in { animation: pp-word-in 1s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: calc(100ms + var(--i, 0) * 70ms); }
+.pp-fade-up { animation: pp-fade-up 0.8s cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: calc(550ms + var(--i, 0) * 100ms); }
+
+/* Scroll reveals. Elements are only hidden once script has armed the page (.pp-reveal-armed),
+   so without JavaScript everything is simply visible. */
+.pp-reveal-armed [data-reveal],
+.pp-reveal-armed [data-reveal-item] {
+  opacity: 0;
+  translate: 0 40px;
+  transition: opacity 0.9s cubic-bezier(0.215, 0.61, 0.355, 1), translate 0.9s cubic-bezier(0.215, 0.61, 0.355, 1), scale 0.9s cubic-bezier(0.215, 0.61, 0.355, 1), transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94), border-color 0.15s ease;
+}
+.pp-reveal-armed [data-reveal-item] { translate: 0 50px; scale: 0.96; }
+.pp-reveal-armed [data-reveal].pp-in,
+.pp-reveal-armed [data-reveal-item].pp-in { opacity: 1; translate: 0 0; scale: 1; }
+
+/* Guide mascot */
+@keyframes pp-mascot-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes pp-mascot-shadow { 0%, 100% { transform: scaleX(1); opacity: 0.35; } 50% { transform: scaleX(0.82); opacity: 0.22; } }
+@keyframes pp-mascot-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes pp-mascot-wave { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-22deg); } 75% { transform: rotate(14deg); } }
+@keyframes pp-mascot-hop { 0%, 100% { transform: translateY(0) scale(1, 1); } 30% { transform: translateY(-7px) scale(0.96, 1.05); } 60% { transform: translateY(0) scale(1.05, 0.95); } }
+@keyframes pp-mascot-glow { 0%, 100% { fill: #c8ff00; } 50% { fill: #f4ffb3; } }
+.pp-mascot .pp-mascot-body { transform-origin: 32px 58px; transform-box: view-box; animation: pp-mascot-bob 2.6s ease-in-out infinite; }
+.pp-mascot .pp-mascot-shadow { transform-origin: 32px 60px; transform-box: view-box; animation: pp-mascot-shadow 2.6s ease-in-out infinite; }
+.pp-mascot .pp-mascot-blink { transform-origin: 32px 31px; transform-box: view-box; animation: pp-mascot-blink 4.2s ease-in-out infinite; }
+.pp-mascot .pp-mascot-tip { animation: pp-mascot-glow 2.6s ease-in-out infinite; }
+.pp-mascot .pp-mascot-arm { transform-origin: 53px 36px; transform-box: view-box; }
+.group:hover .pp-mascot .pp-mascot-arm, .pp-mascot-excited .pp-mascot-arm { animation: pp-mascot-wave 0.9s ease-in-out infinite; }
+.group:hover .pp-mascot .pp-mascot-body, .pp-mascot-excited .pp-mascot-body { animation: pp-mascot-hop 0.9s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
+  .pp-mascot *, .group:hover .pp-mascot * { animation: none !important; }
   .pp-pop, .pp-fade, .pp-rise, .pp-grow, .pp-float-a, .pp-float-b, .pp-float-c, .pp-shimmer, .pp-caret,
-  .pp-card-in, .pp-stagger-in, .pp-swap-in { animation: none !important; }
+  .pp-card-in, .pp-stagger-in, .pp-swap-in, .pp-nav-in, .pp-word-in, .pp-fade-up { animation: none !important; }
 }

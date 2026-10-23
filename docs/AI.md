@@ -7,7 +7,7 @@ PatchPlan AI lives at `/ai` (the **AI** item in the navbar). It runs on NVIDIA N
 1. Copy the AI block from `.env.example` into `.env.local` and fill it in.
 2. Confirm the Nemotron model IDs your key can use (see the `curl` line in `.env.example`) and set `NEMOTRON_SMALL_MODEL` / `NEMOTRON_LARGE_MODEL` if they differ from the defaults.
 3. Create a Discord application with a bot user, enable the **Message Content** intent, invite it to your server, and give it View Channel + Read Message History on the feedback channel. Paste that channel's ID into **AI → Player Signal → Sources**. The existing webhook in Settings → Integrations still posts updates back.
-4. Allow the new Firestore collections in your security rules. They're scoped the same way as `tasks` (`familyId` for studios, `userId` for personal):
+4. The AI collections are covered by [`firestore.rules`](../firestore.rules) (see [SECURITY.md](SECURITY.md)). They're scoped the same way as `tasks` (`familyId` for studios, `userId` for personal):
    - `signals`: triaged player feedback
    - `modules`: AI-built tools
    - `module_rows`: rows in those tools (each row also carries `moduleId`)

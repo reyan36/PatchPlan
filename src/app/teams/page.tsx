@@ -4,28 +4,32 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Member, Family } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove, getDocs, getDoc, query, where } from "firebase/firestore";
-import { Buildings, UserPlus, SignIn, Plus, SignOut } from "@phosphor-icons/react";
-import { Login } from "@/components/auth/Login";
+import { collection, addDoc, doc, updateDoc, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
+import { postWithAuth } from "@/lib/api";
+import { Buildings, UserPlus, SignIn, Plus, SignOut, Crown, Trash } from "@phosphor-icons/react";
+import { Login } from "@/components/auth/LazyLogin";
 import { Modal } from "@/components/ui/Modal";
 import { PageLoader } from "@/components/ui/PageLoader";
 
 export default function TeamsPage() {
   const { user, loading: authLoading } = useAuth();
   const { activeFamily, userProfile, setActiveFamilyId, loading: familyLoading } = useFamily();
-  
+
   const [view, setView] = useState<"hub" | "create" | "join">("hub");
-  
+
   const [familyName, setFamilyName] = useState("");
   const [nickname, setNickname] = useState("");
   const [joinCode, setJoinCode] = useState("");
-  
+
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const [joinedFamiliesData, setJoinedFamiliesData] = useState<Family[]>([]);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveConfirmText, setLeaveConfirmText] = useState("");
+  const [ownerModal, setOwnerModal] = useState<"transfer" | "delete" | null>(null);
+  const [transferTo, setTransferTo] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   // Fetch data for families the user has joined
   useEffect(() => {
@@ -35,9 +39,9 @@ export default function TeamsPage() {
     }
     const fetchFamilies = async () => {
       try {
-        const promises = userProfile.joinedFamilies.map(id => getDoc(doc(db, "families", id)));
-        const snaps = await Promise.all(promises);
-        const data = snaps.filter(s => s.exists()).map(s => ({ id: s.id, ...s.data() } as Family));
+        // One at a time: a studio you were removed from is unreadable and shouldn't hide the rest.
+        const snaps = await Promise.all(userProfile.joinedFamilies.map(id => getDoc(doc(db, "families", id)).catch(() => null)));
+        const data = snaps.filter(s => s?.exists()).map(s => ({ id: s!.id, ...s!.data() } as Family));
         setJoinedFamiliesData(data);
       } catch (err) {
         console.error("Failed to fetch joined families", err);
@@ -77,6 +81,8 @@ export default function TeamsPage() {
         ownerId: user.uid,
         joinCode: code,
         members: [me],
+        // The security rules check membership with memberIds.
+        memberIds: [user.uid],
         createdAt: new Date().toISOString()
       });
 
@@ -85,7 +91,7 @@ export default function TeamsPage() {
         activeFamilyId: docRef.id,
         joinedFamilies: arrayUnion(docRef.id)
       });
-      
+
       setView("hub");
     } catch (err) {
       console.error(err);
@@ -106,48 +112,34 @@ export default function TeamsPage() {
     setError("");
 
     try {
-      // Find family by join code
-      const q = query(collection(db, "families"), where("joinCode", "==", joinCode.trim().toUpperCase()));
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        setError("Invalid Join Code.");
-        setSubmitting(false);
-        return;
-      }
-
-      const familyDoc = snap.docs[0];
-      const familyData = familyDoc.data();
-      
-      // Check if already a member
-      if (familyData.members.some((m: Member) => m.uid === user.uid)) {
-        setError("You are already in this family!");
-        await setActiveFamilyId(familyDoc.id);
-        setView("hub");
-        setSubmitting(false);
-        return;
-      }
-
-      const me: Member = {
-        uid: user.uid,
-        nickname: nickname.trim(),
-        role: "worker",
-        email: user.email || ""
-      };
-
-      await updateDoc(doc(db, "families", familyDoc.id), {
-        members: arrayUnion(me)
-      });
-
-      await updateDoc(doc(db, "user_profiles", user.uid), {
-        activeFamilyId: familyDoc.id,
-        joinedFamilies: arrayUnion(familyDoc.id)
-      });
+      // The server looks up the code: the security rules don't let non-members read studios.
+      const res = await postWithAuth<{ familyId: string; alreadyMember: boolean }>("/api/teams/join", { code: joinCode.trim(), nickname: nickname.trim() });
+      if (res.alreadyMember) setError("You are already in this family!");
+      await setActiveFamilyId(res.familyId).catch(() => {});
 
       setView("hub");
     } catch (err) {
       console.error(err);
-      setError("Failed to join family.");
+      setError(err instanceof Error && err.message ? err.message : "Failed to join family.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const ownerAction = async (action: "transfer" | "delete") => {
+    if (!activeFamily) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await postWithAuth("/api/teams/manage", action === "transfer"
+        ? { action, familyId: activeFamily.id, uid: transferTo }
+        : { action, familyId: activeFamily.id, confirm: deleteConfirm });
+      setOwnerModal(null);
+      setTransferTo("");
+      setDeleteConfirm("");
+      if (action === "delete") setView("hub");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That didn't work.");
     } finally {
       setSubmitting(false);
     }
@@ -156,14 +148,17 @@ export default function TeamsPage() {
   const handleLeaveFamily = async () => {
     if (leaveConfirmText !== "LEAVE" || !activeFamily || !user) return;
     setSubmitting(true);
-    
+
     try {
-      const familyRef = doc(db, "families", activeFamily.id);
-      const me = activeFamily.members.find((m: Member) => m.uid === user.uid);
-      
-      if (me) {
-        await updateDoc(familyRef, { members: arrayRemove(me) });
+      // Owners can't leave (they transfer ownership or delete the studio instead).
+      if (activeFamily.ownerId === user.uid) {
+        setError("Owners can't leave. Transfer ownership or delete the studio.");
+        return;
       }
+      await updateDoc(doc(db, "families", activeFamily.id), {
+        members: activeFamily.members.filter((m: Member) => m.uid !== user.uid),
+        memberIds: arrayRemove(user.uid),
+      });
 
       await updateDoc(doc(db, "user_profiles", user.uid), {
         joinedFamilies: arrayRemove(activeFamily.id),
@@ -203,7 +198,7 @@ export default function TeamsPage() {
                     <h3 className="font-medium text-lg">{family.name}</h3>
                     <p className="text-sm text-muted-foreground">{family.members.length} members</p>
                   </div>
-                  <button 
+                  <button
                     onClick={() => setActiveFamilyId(family.id)}
                     className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-md font-medium text-sm transition-colors"
                   >
@@ -214,9 +209,9 @@ export default function TeamsPage() {
             </div>
           </div>
         )}
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div 
+          <div
             role="button"
             tabIndex={0}
             onClick={() => setView("create")}
@@ -230,7 +225,7 @@ export default function TeamsPage() {
             <p className="text-sm text-muted-foreground mt-2">Start a new workspace for your studio and invite your team.</p>
           </div>
 
-          <div 
+          <div
             role="button"
             tabIndex={0}
             onClick={() => setView("join")}
@@ -255,7 +250,7 @@ export default function TeamsPage() {
           <header className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-                <Buildings size={32} weight="duotone" className="text-primary" /> 
+                <Buildings size={32} weight="duotone" className="text-primary" />
                 {activeFamily.name}
               </h1>
               <p className="text-muted-foreground">You are currently operating in this Family workspace.</p>
@@ -277,7 +272,7 @@ export default function TeamsPage() {
                 <div key={member.uid} className="px-6 py-4 flex justify-between items-center hover:bg-muted/10 transition-colors">
                   <div>
                     <div className="font-medium flex items-center gap-2">
-                      {member.nickname} 
+                      {member.nickname}
                       {member.uid === user.uid && <span className="text-[10px] uppercase bg-primary/20 text-primary px-2 py-0.5 rounded-full font-bold">You</span>}
                     </div>
                     <div className="text-sm text-muted-foreground">{member.email}</div>
@@ -289,32 +284,51 @@ export default function TeamsPage() {
               ))}
             </div>
           </div>
-          
+
           <div className="flex justify-between items-center mt-6">
-            <button 
-              onClick={() => setIsLeaveModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors font-medium"
-            >
-              <SignOut size={16} weight="bold" /> Permanently Leave Family
-            </button>
-            <button 
-              onClick={() => setActiveFamilyId(null)} 
+            {activeFamily.ownerId === user.uid ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {activeFamily.members.some((m) => m.uid !== user.uid) && (
+                  <button
+                    onClick={() => { setError(""); setOwnerModal("transfer"); }}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-muted hover:bg-border rounded-md transition-colors font-medium"
+                  >
+                    <Crown size={16} weight="duotone" /> Transfer ownership
+                  </button>
+                )}
+                <button
+                  onClick={() => { setError(""); setOwnerModal("delete"); }}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors font-medium"
+                >
+                  <Trash size={16} weight="bold" /> Delete studio
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setError(""); setIsLeaveModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 text-sm text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-md transition-colors font-medium"
+              >
+                <SignOut size={16} weight="bold" /> Leave studio
+              </button>
+            )}
+            <button
+              onClick={() => setActiveFamilyId(null)}
               className="px-4 py-2 text-sm bg-muted text-muted-foreground hover:text-foreground hover:bg-border rounded-md transition-colors"
             >
               Switch to Personal Workspace
             </button>
           </div>
 
-          <Modal isOpen={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} title="Leave Family">
+          <Modal isOpen={isLeaveModalOpen} onClose={() => setIsLeaveModalOpen(false)} title="Leave studio">
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                You are about to permanently leave <strong>{activeFamily.name}</strong>. By doing this, you will be kicked out of the family team. 
-                Your data and contributions will be auto-deleted after 3 days.
+                You&apos;re about to leave <strong>{activeFamily.name}</strong>. You&apos;ll lose access to its boards, docs and settings.
+                What you created stays with the studio. You can rejoin later with the invite code.
               </p>
               <div>
                 <label className="block text-sm font-medium mb-1">Type "LEAVE" to confirm</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={leaveConfirmText}
                   onChange={e => setLeaveConfirmText(e.target.value)}
                   placeholder="LEAVE"
@@ -323,18 +337,76 @@ export default function TeamsPage() {
               </div>
               {error && <div className="text-red-400 text-sm">{error}</div>}
               <div className="flex gap-4 pt-4 mt-2">
-                <button 
+                <button
                   onClick={() => { setIsLeaveModalOpen(false); setLeaveConfirmText(""); }}
                   className="flex-1 py-2 rounded-md hover:bg-muted text-muted-foreground font-medium transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={handleLeaveFamily}
                   disabled={submitting || leaveConfirmText !== "LEAVE"}
                   className="flex-1 py-2 bg-red-500 text-white rounded-md font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  {submitting ? "Leaving..." : "Leave Family"}
+                  {submitting ? "Leaving..." : "Leave studio"}
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal isOpen={ownerModal === "transfer"} onClose={() => setOwnerModal(null)} title="Transfer ownership">
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                The new owner can manage the studio and delete it. You&apos;ll stay on as a member and can leave afterwards.
+              </p>
+              <select
+                value={transferTo}
+                onChange={(e) => setTransferTo(e.target.value)}
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm focus:outline-none"
+              >
+                <option value="">Choose a member</option>
+                {activeFamily.members.filter((m) => m.uid !== user.uid).map((m) => (
+                  <option key={m.uid} value={m.uid}>{m.nickname} ({m.email})</option>
+                ))}
+              </select>
+              {error && <div className="text-red-400 text-sm">{error}</div>}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setOwnerModal(null)} className="flex-1 py-2 rounded-md hover:bg-muted text-muted-foreground font-medium">Cancel</button>
+                <button
+                  onClick={() => ownerAction("transfer")}
+                  disabled={submitting || !transferTo}
+                  className="flex-1 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitting ? "Transferring..." : "Transfer"}
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal isOpen={ownerModal === "delete"} onClose={() => setOwnerModal(null)} title="Delete studio">
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This permanently deletes <strong>{activeFamily.name}</strong> and everything in it: tasks, docs, news, roadmap, contacts,
+                email subscribers and campaigns, AI tools and beta testers. Every member loses access. This can&apos;t be undone.
+              </p>
+              <div>
+                <label className="block text-sm font-medium mb-1">Type <strong>{activeFamily.name}</strong> to confirm</label>
+                <input
+                  value={deleteConfirm}
+                  onChange={(e) => setDeleteConfirm(e.target.value)}
+                  placeholder={activeFamily.name}
+                  className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+              {error && <div className="text-red-400 text-sm">{error}</div>}
+              <div className="flex gap-3 pt-2">
+                <button onClick={() => setOwnerModal(null)} className="flex-1 py-2 rounded-md hover:bg-muted text-muted-foreground font-medium">Cancel</button>
+                <button
+                  onClick={() => ownerAction("delete")}
+                  disabled={submitting || deleteConfirm.trim() !== activeFamily.name.trim()}
+                  className="flex-1 py-2 bg-red-500 text-white rounded-md font-medium hover:opacity-90 disabled:opacity-50"
+                >
+                  {submitting ? "Deleting..." : "Delete studio"}
                 </button>
               </div>
             </div>
@@ -348,35 +420,35 @@ export default function TeamsPage() {
           <form onSubmit={handleCreateFamily} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Studio / Family Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={familyName}
                 onChange={e => setFamilyName(e.target.value)}
-                placeholder="e.g. Your Studio" 
+                placeholder="e.g. Your Studio"
                 className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none"
               />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Your Nickname</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
-                placeholder="How your team will see you" 
+                placeholder="How your team will see you"
                 className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none"
               />
             </div>
             {error && <div className="text-red-400 text-sm">{error}</div>}
             <div className="flex gap-4 pt-4">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setView("hub")}
                 className="flex-1 py-2 rounded-md hover:bg-muted text-muted-foreground font-medium transition-colors"
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={submitting}
                 className="flex-1 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >
@@ -393,35 +465,35 @@ export default function TeamsPage() {
           <form onSubmit={handleJoinFamily} className="space-y-4">
             <div>
               <label className="block text-sm font-medium mb-1">Invite Code</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={joinCode}
                 onChange={e => setJoinCode(e.target.value)}
-                placeholder="e.g. A1B2C3" 
+                placeholder="e.g. A1B2C3"
                 className="w-full bg-background border border-border rounded-md px-4 py-2 uppercase tracking-widest focus:border-primary focus:outline-none"
               />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Your Nickname</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={nickname}
                 onChange={e => setNickname(e.target.value)}
-                placeholder="How your team will see you" 
+                placeholder="How your team will see you"
                 className="w-full bg-background border border-border rounded-md px-4 py-2 focus:border-primary focus:outline-none"
               />
             </div>
             {error && <div className="text-red-400 text-sm">{error}</div>}
             <div className="flex gap-4 pt-4">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => setView("hub")}
                 className="flex-1 py-2 rounded-md hover:bg-muted text-muted-foreground font-medium transition-colors"
               >
                 Cancel
               </button>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={submitting}
                 className="flex-1 py-2 bg-primary text-primary-foreground rounded-md font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
               >

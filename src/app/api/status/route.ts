@@ -1,405 +1,222 @@
+// Public status data. History comes from UptimeRobot monitors; components without a monitor
+// get a live reachability check. The response is cached at the edge for a minute, so the
+// page's one-minute polling (and any number of visitors) costs about one run per minute.
+
 import { NextResponse } from "next/server";
+import { PROBES, probe } from "@/lib/status/probes";
+import { loadMaintenance } from "@/lib/status/maintenance";
+import { adminDb } from "@/lib/email/server";
+import { COMPONENTS, HEALTH_RANK, type DayBar, type Health, type Incident, type StatusComponent, type StatusPayload } from "@/lib/status/types";
 
 export const dynamic = "force-dynamic";
 
-export type DailyBar = {
-  date: string;
-  uptime: number;
-  status: "operational" | "degraded" | "outage" | "no-data";
-};
+const DAYS = 45;
+const CACHE = "public, s-maxage=60, stale-while-revalidate=300";
 
-export type ServiceMonitor = {
-  id: string;
-  name: string;
-  description: string;
-  status: "operational" | "degraded" | "outage" | "paused";
-  uptimeRatio: string;
-  responseTimeMs: number;
-  dailyBars: DailyBar[];
-};
+type Slot = { label: string; start: number; end: number };
 
-export type IncidentItem = {
-  id: string;
-  service: string;
-  type: "outage" | "recovered";
-  timestamp: number;
-  durationSec?: number;
-  detail: string;
-};
-
-const DAYS_COUNT = 45;
-
-type DaySlot = {
-  label: string;
-  startSec: number;
-  endSec: number;
-};
-
-/** Build UTC day slots for the last N days (oldest -> newest) */
-function buildDaySlots(days: number): DaySlot[] {
+/** UTC day slots for the last N days, oldest first. */
+function daySlots(days: number): Slot[] {
   const now = new Date();
   const nowSec = Math.floor(now.getTime() / 1000);
-  const slots: DaySlot[] = [];
-
-  for (let i = days - 1; i >= 0; i--) {
-    const start = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i, 0, 0, 0)
-    );
-    const end = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i, 23, 59, 59)
-    );
-    const startSec = Math.floor(start.getTime() / 1000);
-    const endSec = i === 0 ? Math.max(startSec + 60, nowSec) : Math.floor(end.getTime() / 1000);
-
-    const label = start.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-
-    slots.push({ label, startSec, endSec });
-  }
-
-  return slots;
-}
-
-/** In fallback mode (no UptimeRobot monitor connected), only today has live probe data; prior days show "no-data" */
-function generateLiveProbeBars(slots: DaySlot[], todayOk: boolean): DailyBar[] {
-  return slots.map((slot, idx) => {
-    const isToday = idx === slots.length - 1;
-    if (!isToday) {
-      return {
-        date: slot.label,
-        uptime: 0,
-        status: "no-data",
-      };
-    }
-    return {
-      date: slot.label,
-      uptime: todayOk ? 100 : 95,
-      status: todayOk ? "operational" : "degraded",
-    };
+  return Array.from({ length: days }, (_, k) => {
+    const i = days - 1 - k;
+    const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i) / 1000;
+    const end = i === 0 ? Math.max(start + 60, nowSec) : start + 86399;
+    const label = new Date(start * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    return { label, start, end };
   });
 }
 
-async function probeUrl(url: string, timeoutMs = 3500): Promise<{ ok: boolean; ms: number }> {
-  const start = performance.now();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+/** UptimeRobot reason codes → wording for players and studios. */
+function friendlyReason(log: any) {
+  const detail = String(log?.reason?.detail || "").toLowerCase();
+  if (detail.includes("timeout")) return "Requests timed out";
+  if (detail.includes("refused")) return "Connections were refused";
+  if (detail.includes("ssl") || detail.includes("certificate")) return "Secure connection problem";
+  if (detail.includes("dns") || detail.includes("resolve")) return "Address lookup failed";
+  const code = Number(log?.reason?.code);
+  if (code >= 500 && code < 600) return "Server errors";
+  if (code === 429) return "Too many requests";
+  return "Service unreachable";
+}
+
+/** Maps a monitor to a component: `?check=<id>` in its URL, otherwise the main web app. */
+function componentFor(m: any, index: number): string {
   try {
-    const res = await fetch(url, {
-      method: "HEAD",
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    const ms = Math.max(1, Math.round(performance.now() - start));
-    return { ok: res.status < 500, ms };
-  } catch {
-    const ms = Math.max(1, Math.round(performance.now() - start));
-    return { ok: false, ms };
-  } finally {
-    clearTimeout(timer);
-  }
+    const id = new URL(m.url).searchParams.get("check");
+    if (id && COMPONENTS[id]) return id;
+  } catch {}
+  return index === 0 ? "web" : `monitor-${m.id}`;
 }
 
-async function fetchUptimeRobotMonitors(apiKey: string, rangesParam: string) {
-  // Attempt 1: with custom_uptime_ranges
-  const paramsWithRanges = new URLSearchParams({
-    api_key: apiKey,
+async function uptimeRobot(slots: Slot[]) {
+  const key = process.env.UPTIMEROBOT_API_KEY?.trim();
+  if (!key) return [];
+  const now = Math.floor(Date.now() / 1000);
+  const base = {
+    api_key: key.split(",")[0].trim(),
     format: "json",
     logs: "1",
     logs_limit: "50",
     response_times: "1",
-    response_times_limit: "12",
+    response_times_average: "30",
+    response_times_start_date: String(now - 86400),
+    response_times_end_date: String(now),
     custom_uptime_ratios: "30",
-    custom_uptime_ranges: rangesParam,
-  });
-
-  const res1 = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Cache-Control": "no-cache",
-    },
-    body: paramsWithRanges.toString(),
-    cache: "no-store",
-  });
-
-  if (res1.ok) {
-    const data1 = await res1.json();
-    if (data1.stat === "ok" && Array.isArray(data1.monitors)) {
-      return { ok: true, monitors: data1.monitors, error: null };
+  };
+  // Free plans sometimes reject 45 custom ranges; retry without them.
+  for (const params of [{ ...base, custom_uptime_ranges: slots.map((s) => `${s.start}_${s.end}`).join("-") }, base]) {
+    try {
+      const res = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams(params).toString(),
+        cache: "no-store",
+        signal: AbortSignal.timeout(6000),
+      });
+      const data = res.ok ? await res.json() : null;
+      if (data?.stat === "ok" && Array.isArray(data.monitors)) return data.monitors as any[];
+    } catch (err) {
+      console.warn("[status] UptimeRobot:", err instanceof Error ? err.message : err);
     }
   }
+  return [];
+}
 
-  // Attempt 2: fallback without custom_uptime_ranges (in case UptimeRobot rejects 45 ranges on free tier)
-  const paramsBasic = new URLSearchParams({
-    api_key: apiKey,
-    format: "json",
-    logs: "1",
-    logs_limit: "50",
-    response_times: "1",
-    response_times_limit: "12",
-    custom_uptime_ratios: "30",
+function monitorHealth(m: any): Health {
+  if (m.status === 9) return "outage";
+  if (m.status === 8) return "degraded";
+  if (m.status === 0) return "maintenance";
+  return "operational";
+}
+
+function monitorBars(m: any, slots: Slot[]): DayBar[] {
+  const ranges: string[] = typeof m.custom_uptime_ranges === "string" ? m.custom_uptime_ranges.split("-") : [];
+  const created = Number(m.create_datetime || 0);
+  const downLogs = (Array.isArray(m.logs) ? m.logs : []).filter((l: any) => l.type === 1);
+
+  return slots.map((slot, i) => {
+    if (created && slot.end < created) return { date: slot.label, uptime: null, downMinutes: 0, status: "no-data" };
+    let downSec = 0;
+    for (const l of downLogs) {
+      const s = Number(l.datetime || 0);
+      const e = s + Number(l.duration || 0);
+      const overlap = Math.min(slot.end, e) - Math.max(slot.start, s);
+      if (overlap > 0) downSec += overlap;
+    }
+    let uptime: number;
+    const raw = parseFloat(ranges[i]);
+    if (!Number.isNaN(raw) && !(raw === 0 && downSec === 0)) uptime = raw;
+    else {
+      const window = Math.max(60, slot.end - Math.max(slot.start, created));
+      uptime = Math.max(0, Math.min(100, ((window - downSec) / window) * 100));
+    }
+    const status: DayBar["status"] = uptime >= 99.9 && downSec < 60 ? "operational" : uptime > 0 ? "degraded" : "outage";
+    return { date: slot.label, uptime: Math.round(uptime * 100) / 100, downMinutes: Math.round(downSec / 60), status };
+  });
+}
+
+// Per-instance memo so local dev and cold edges don't hammer UptimeRobot (10 req/min on free).
+let memo: { at: number; body: StatusPayload } | null = null;
+
+async function build(): Promise<StatusPayload> {
+  const slots = daySlots(DAYS);
+  const monitors = await uptimeRobot(slots);
+
+  const components = new Map<string, StatusComponent>();
+  const incidents: Incident[] = [];
+  let responseSeries: StatusPayload["responseSeries"] = [];
+  let avgResponseMs: number | null = null;
+
+  monitors.forEach((m, index) => {
+    const id = componentFor(m, index);
+    const meta = COMPONENTS[id] || { id, name: String(m.friendly_name || "Service"), description: "Monitored service", group: "Core platform" as const };
+    const status = monitorHealth(m);
+    const response = m.average_response_time ? Math.round(parseFloat(m.average_response_time)) : null;
+    components.set(id, {
+      ...meta,
+      status,
+      uptime: m.custom_uptime_ratio ? Math.round(parseFloat(m.custom_uptime_ratio) * 100) / 100 : null,
+      responseMs: response,
+      bars: monitorBars(m, slots),
+    });
+
+    if (id === "web") {
+      avgResponseMs = response;
+      responseSeries = (Array.isArray(m.response_times) ? m.response_times : [])
+        .map((r: any) => ({ t: Number(r.datetime) * 1000, ms: Math.round(Number(r.value)) }))
+        .filter((r: { t: number; ms: number }) => r.t && r.ms > 0)
+        .sort((a: { t: number }, b: { t: number }) => a.t - b.t);
+    }
+
+    const downLogs = (Array.isArray(m.logs) ? m.logs : []).filter((l: any) => l.type === 1 && Number(l.datetime) * 1000 > Date.now() - DAYS * 86400000);
+    downLogs.forEach((l: any, i: number) => {
+      const start = Number(l.datetime) * 1000;
+      const ongoing = i === 0 && status === "outage";
+      incidents.push({
+        id: `${m.id}-${l.datetime}`,
+        component: meta.name,
+        start,
+        end: ongoing ? null : start + Number(l.duration || 0) * 1000,
+        durationSec: Number(l.duration || 0),
+        reason: friendlyReason(l),
+      });
+    });
   });
 
-  const res2 = await fetch("https://api.uptimerobot.com/v2/getMonitors", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Cache-Control": "no-cache",
-    },
-    body: paramsBasic.toString(),
-    cache: "no-store",
+  // The web app is serving this response, so it's up even without a monitor.
+  if (!components.has("web")) components.set("web", { ...COMPONENTS.web, status: "operational", uptime: null, responseMs: null, bars: null });
+
+  // Live checks for anything without a monitor.
+  const live = Object.keys(PROBES).filter((id) => !components.has(id) && PROBES[id].enabled());
+  const results = await Promise.all(live.map((id) => probe(PROBES[id].url())));
+  live.forEach((id, i) => {
+    const r = results[i];
+    components.set(id, {
+      ...COMPONENTS[id],
+      // One failed check from one region isn't proof of an outage, so it reads as degraded.
+      status: r.ok ? (r.ms > 3000 ? "degraded" : "operational") : "degraded",
+      uptime: null,
+      responseMs: r.ms,
+      bars: null,
+    });
   });
 
-  if (!res2.ok) {
-    return { ok: false, monitors: [], error: `HTTP ${res2.status}` };
-  }
+  const order = Object.keys(COMPONENTS);
+  const list = Array.from(components.values()).sort((a, b) => {
+    const ai = order.indexOf(a.id);
+    const bi = order.indexOf(b.id);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+  const withUptime = list.filter((c) => c.uptime !== null);
 
-  const data2 = await res2.json();
-  if (data2.stat === "ok" && Array.isArray(data2.monitors)) {
-    return { ok: true, monitors: data2.monitors, error: null };
+  // Scheduled maintenance: services in an active window show "Maintenance" unless they are actually down.
+  const maintenance = await loadMaintenance(adminDb()).catch((err) => {
+    console.warn("[status] maintenance:", err instanceof Error ? err.message : err);
+    return { active: [], upcoming: [], recent: [] };
+  });
+  for (const m of maintenance.active) {
+    const affected = m.components.length ? m.components : list.map((c) => c.id);
+    list.forEach((c) => {
+      if (affected.includes(c.id) && c.status === "operational") c.status = "maintenance";
+    });
   }
 
   return {
-    ok: false,
-    monitors: [],
-    error: data2?.error?.message || data2?.error?.type || "Invalid API key or no monitors found",
+    overall: list.reduce<Health>((worst, c) => (HEALTH_RANK[c.status] > HEALTH_RANK[worst] ? c.status : worst), "operational"),
+    updatedAt: Date.now(),
+    days: DAYS,
+    components: list,
+    uptime30: withUptime.length ? Math.round((withUptime.reduce((s, c) => s + (c.uptime || 0), 0) / withUptime.length) * 100) / 100 : null,
+    avgResponseMs,
+    responseSeries,
+    incidents: incidents.sort((a, b) => b.start - a.start).slice(0, 20),
+    maintenance: { ...maintenance, recent: maintenance.recent.slice(0, 10) },
   };
 }
 
 export async function GET() {
-  const slots = buildDaySlots(DAYS_COUNT);
-  const rangesParam = slots.map((s) => `${s.startSec}_${s.endSec}`).join("-");
-  const apiKeyEnv = process.env.UPTIMEROBOT_API_KEY?.trim();
-
-  let diagnosticError: string | null = null;
-
-  // 1. If UPTIMEROBOT_API_KEY is configured, fetch live monitors from UptimeRobot API v2
-  if (apiKeyEnv) {
-    try {
-      const keys = apiKeyEnv
-        .split(",")
-        .map((k) => k.trim())
-        .filter(Boolean);
-
-      const allMonitors: any[] = [];
-
-      for (const apiKey of keys) {
-        const result = await fetchUptimeRobotMonitors(apiKey, rangesParam);
-        if (result.ok) {
-          allMonitors.push(...result.monitors);
-        } else if (result.error) {
-          diagnosticError = result.error;
-        }
-      }
-
-      if (allMonitors.length > 0) {
-        const incidents: IncidentItem[] = [];
-
-        const monitors: ServiceMonitor[] = allMonitors.map((m) => {
-          // UptimeRobot status codes: 2 = up, 8 = seems down, 9 = down, 0 = paused, 1 = not checked yet
-          let status: ServiceMonitor["status"] = "operational";
-          if (m.status === 9) status = "outage";
-          else if (m.status === 8) status = "degraded";
-          else if (m.status === 0) status = "paused";
-
-          const hasCustomRanges = typeof m.custom_uptime_ranges === "string" && m.custom_uptime_ranges.length > 0;
-          const rangeValues: string[] = hasCustomRanges ? m.custom_uptime_ranges.split("-") : [];
-          const monitorCreatedSec = Number(m.create_datetime || 0);
-
-          const dailyBars: DailyBar[] = slots.map((slot, idx) => {
-            // 1. Any day that ended BEFORE the monitor was created in UptimeRobot -> "no-data" (gray bar)
-            if (monitorCreatedSec > 0 && slot.endSec < monitorCreatedSec) {
-              return { date: slot.label, uptime: 0, status: "no-data" };
-            }
-
-            // Calculate any logged downtime seconds during this UTC day slot
-            let downSecondsOnDay = 0;
-            if (Array.isArray(m.logs)) {
-              for (const log of m.logs) {
-                if (log.type === 1) {
-                  const logStart = Number(log.datetime || 0);
-                  const logEnd = logStart + Number(log.duration || 0);
-                  const overlapStart = Math.max(slot.startSec, logStart);
-                  const overlapEnd = Math.min(slot.endSec, logEnd);
-                  if (overlapEnd > overlapStart) {
-                    downSecondsOnDay += overlapEnd - overlapStart;
-                  }
-                }
-              }
-            }
-
-            // 2. If UptimeRobot returned custom_uptime_ranges for this slot
-            if (hasCustomRanges && rangeValues[idx] !== undefined) {
-              const rawVal = parseFloat(rangeValues[idx]);
-              if (!isNaN(rawVal)) {
-                // UptimeRobot returns 0.000 if a monitor was created mid-day and hasn't accumulated full range stats yet
-                if (rawVal === 0 && downSecondsOnDay === 0) {
-                  if (m.status === 2) {
-                    return { date: slot.label, uptime: 100, status: "operational" };
-                  }
-                  return { date: slot.label, uptime: 0, status: "no-data" };
-                }
-
-                let barStatus: DailyBar["status"] = "operational";
-                if (rawVal === 0) barStatus = "outage";
-                else if (rawVal < 99) barStatus = "degraded";
-
-                return { date: slot.label, uptime: rawVal, status: barStatus };
-              }
-            }
-
-            // 3. Fallback calculation for days >= monitorCreatedSec using downtime logs
-            const activeWindowSec = Math.max(
-              60,
-              slot.endSec - Math.max(slot.startSec, monitorCreatedSec)
-            );
-            const ratio = Math.max(
-              0,
-              Math.min(100, ((activeWindowSec - downSecondsOnDay) / activeWindowSec) * 100)
-            );
-
-            let barStatus: DailyBar["status"] = "operational";
-            if (ratio === 0) barStatus = "outage";
-            else if (ratio < 99) barStatus = "degraded";
-
-            return { date: slot.label, uptime: ratio, status: barStatus };
-          });
-
-          const avgResponse = m.average_response_time
-            ? Math.round(parseFloat(m.average_response_time))
-            : m.response_times?.[0]?.value
-            ? Number(m.response_times[0].value)
-            : 0;
-
-          // Collect downtime/recovery logs
-          if (Array.isArray(m.logs)) {
-            m.logs.forEach((log: any, lIdx: number) => {
-              // log.type: 1 = down, 2 = up
-              if (log.type === 1 || log.type === 2) {
-                incidents.push({
-                  id: `${m.id}-${log.datetime}-${lIdx}`,
-                  service: m.friendly_name || "PatchPlan Service",
-                  type: log.type === 1 ? "outage" : "recovered",
-                  timestamp: (log.datetime || 0) * 1000,
-                  durationSec: log.duration,
-                  detail:
-                    log.type === 1
-                      ? `Service interruption detected (${log.reason?.detail || "Connection timeout"})`
-                      : "Service recovered and operating normally",
-                });
-              }
-            });
-          }
-
-          let hostname = "Production endpoint";
-          try {
-            if (m.url) hostname = new URL(m.url).hostname;
-          } catch {
-            hostname = m.url || "Production endpoint";
-          }
-
-          return {
-            id: String(m.id),
-            name: m.friendly_name || "PatchPlan Monitor",
-            description: hostname,
-            status,
-            uptimeRatio: parseFloat(m.custom_uptime_ratio || "100").toFixed(2),
-            responseTimeMs: avgResponse,
-            dailyBars,
-          };
-        });
-
-        incidents.sort((a, b) => b.timestamp - a.timestamp);
-
-        const anyOutage = monitors.some((m) => m.status === "outage");
-        const anyDegraded = monitors.some((m) => m.status === "degraded");
-
-        return NextResponse.json({
-          source: "uptimerobot",
-          keyConfigured: true,
-          diagnosticError: null,
-          overallStatus: anyOutage ? "outage" : anyDegraded ? "degraded" : "operational",
-          updatedAt: Date.now(),
-          monitors,
-          incidents: incidents.slice(0, 8),
-        });
-      }
-    } catch (err: any) {
-      diagnosticError = err?.message || "Failed to reach UptimeRobot API";
-      console.warn("UptimeRobot fetch fallback:", err);
-    }
-  }
-
-  // 2. Built-in Live Infrastructure Probes (runs when UPTIMEROBOT_API_KEY is not set or has 0 monitors)
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "patchplan-443a0";
-
-  const [firestoreProbe, authProbe, discordProbe] = await Promise.all([
-    probeUrl(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`),
-    probeUrl("https://identitytoolkit.googleapis.com"),
-    probeUrl("https://discord.com/api/v10/gateway"),
-  ]);
-
-  const monitors: ServiceMonitor[] = [
-    {
-      id: "web-app",
-      name: "Web Application & Studio Workspace",
-      description: "Next.js App Router, Sprint Boards, GDD Editor & Canvas",
-      status: "operational",
-      uptimeRatio: "100.00",
-      responseTimeMs: 18,
-      dailyBars: generateLiveProbeBars(slots, true),
-    },
-    {
-      id: "firestore-db",
-      name: "Realtime Database (Firestore)",
-      description: "Studio tasks, articles, roadmaps & network sync",
-      status: firestoreProbe.ok ? "operational" : "degraded",
-      uptimeRatio: firestoreProbe.ok ? "100.00" : "99.40",
-      responseTimeMs: firestoreProbe.ms,
-      dailyBars: generateLiveProbeBars(slots, firestoreProbe.ok),
-    },
-    {
-      id: "firebase-auth",
-      name: "Authentication & Studio Access",
-      description: "Google OAuth, email login & team session verification",
-      status: authProbe.ok ? "operational" : "degraded",
-      uptimeRatio: authProbe.ok ? "100.00" : "99.50",
-      responseTimeMs: authProbe.ms,
-      dailyBars: generateLiveProbeBars(slots, authProbe.ok),
-    },
-    {
-      id: "public-hubs",
-      name: "Public Roadmaps & Press Pages",
-      description: "Community-facing /p/roadmap and /p/news edge pages",
-      status: "operational",
-      uptimeRatio: "100.00",
-      responseTimeMs: 24,
-      dailyBars: generateLiveProbeBars(slots, true),
-    },
-    {
-      id: "discord-webhooks",
-      name: "Discord Webhook Relay",
-      description: "Automated task completion & devlog embed notifications",
-      status: discordProbe.ok ? "operational" : "degraded",
-      uptimeRatio: discordProbe.ok ? "100.00" : "99.20",
-      responseTimeMs: discordProbe.ms,
-      dailyBars: generateLiveProbeBars(slots, discordProbe.ok),
-    },
-  ];
-
-  const anyDegraded = monitors.some((m) => m.status === "degraded");
-
-  return NextResponse.json({
-    source: "live-probe",
-    keyConfigured: Boolean(apiKeyEnv),
-    diagnosticError,
-    overallStatus: anyDegraded ? "degraded" : "operational",
-    updatedAt: Date.now(),
-    monitors,
-    incidents: [],
-  });
+  if (!memo || Date.now() - memo.at > 55_000) memo = { at: Date.now(), body: await build() };
+  return NextResponse.json(memo.body, { headers: { "Cache-Control": CACHE } });
 }

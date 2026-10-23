@@ -1,8 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { onAuthStateChanged, User, signOut } from "firebase/auth";
-import { auth } from "./firebase";
+import type { User } from "firebase/auth";
+
+// Firebase Auth is loaded after the page is interactive, so it never blocks first paint.
+const loadAuth = () => import("./lazyAuth");
 
 const HINT_KEY = "pp-auth-hint";
 
@@ -11,10 +13,11 @@ type AuthContextType = {
   loading: boolean;
   /**
    * Whether this browser was signed in last time (from localStorage), known before Firebase
-   * finishes restoring the session. null on the server and on a first visit.
-   * Used only to pick the right placeholder while `loading`, never for access decisions.
+   * finishes restoring the session. undefined until read (server render and first client render),
+   * null when there's no hint (first visit). Used only to pick what to show while `loading`,
+   * never for access decisions.
    */
-  signedInHint: boolean | null;
+  signedInHint: boolean | null | undefined;
   /** True from clicking Sign out until the redirect home, so pages don't flash their sign-in view. */
   signingOut: boolean;
   logout: () => void;
@@ -23,7 +26,7 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  signedInHint: null,
+  signedInHint: undefined,
   signingOut: false,
   logout: () => {},
 });
@@ -39,31 +42,43 @@ const writeHint = (signedIn: boolean) => {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [signedInHint, setSignedInHint] = useState<boolean | null>(null);
+  const [signedInHint, setSignedInHint] = useState<boolean | null | undefined>(undefined);
   const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     try {
       const h = localStorage.getItem(HINT_KEY);
-      if (h) setSignedInHint(h === "in");
+      setSignedInHint(h ? h === "in" : null);
     } catch {
-      // Ignore: no hint.
+      setSignedInHint(null); // storage blocked: treat as no hint
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-      setSignedInHint(!!user);
-      writeHint(!!user);
-    });
-    return () => unsubscribe();
+    let unsubscribe = () => {};
+    let cancelled = false;
+    loadAuth()
+      .then(({ auth, onAuthStateChanged }) => {
+        if (cancelled) return;
+        unsubscribe = onAuthStateChanged(auth, (user) => {
+          setUser(user);
+          setLoading(false);
+          setSignedInHint(!!user);
+          writeHint(!!user);
+        });
+      })
+      .catch(() => setLoading(false)); // offline or blocked: behave as signed out
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   // Signing out always lands on the home page; a full reload also clears any workspace state.
   const logout = () => {
     setSigningOut(true);
     writeHint(false);
-    signOut(auth).finally(() => window.location.replace("/"));
+    loadAuth()
+      .then(({ auth, signOut }) => signOut(auth))
+      .finally(() => window.location.replace("/"));
   };
 
   return (

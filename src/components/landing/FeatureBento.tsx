@@ -1,7 +1,6 @@
 "use client";
 
 import type { ReactNode } from "react";
-import gsap from "gsap";
 import {
   Kanban,
   FileText,
@@ -15,7 +14,7 @@ import {
   TwitchLogo,
 } from "@phosphor-icons/react";
 
-/** Pointer-follow 3D tilt + spotlight for a card. */
+/** Pointer-follow 3D tilt + spotlight for a card. Smoothing comes from the CSS transform transition. */
 function tiltHandlers() {
   return {
     onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
@@ -25,10 +24,10 @@ function tiltHandlers() {
       const y = (e.clientY - r.top) / r.height;
       el.style.setProperty("--mx", `${x * 100}%`);
       el.style.setProperty("--my", `${y * 100}%`);
-      gsap.to(el, { rotateY: (x - 0.5) * 4, rotateX: (0.5 - y) * 4, transformPerspective: 1200, duration: 0.5, ease: "power2.out" });
+      el.style.transform = `perspective(1200px) rotateY(${((x - 0.5) * 4).toFixed(2)}deg) rotateX(${((0.5 - y) * 4).toFixed(2)}deg)`;
     },
     onPointerLeave: (e: React.PointerEvent<HTMLDivElement>) => {
-      gsap.to(e.currentTarget, { rotateY: 0, rotateX: 0, duration: 0.7, ease: "elastic.out(1, 0.6)" });
+      e.currentTarget.style.transform = "";
     },
   };
 }

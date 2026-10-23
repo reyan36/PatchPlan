@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Family } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
 import { Bell, Clock, ArrowRight, CheckSquare, WarningCircle } from "@phosphor-icons/react";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import Link from "next/link";
-import { TaskSidePanel } from "@/features/task-management/TaskSidePanel";
+import dynamic from "next/dynamic";
+
+// The rich-text editor in the task panel is large; it loads when a task is opened.
+const TaskSidePanel = dynamic(() => import("@/features/task-management/TaskSidePanel").then((m) => m.TaskSidePanel), { ssr: false });
 
 type Task = {
   id: string;
@@ -30,6 +33,7 @@ export default function InboxPage() {
   
   // Optional: Fetch family names so we can display which workspace the task is from
   const [familyNames, setFamilyNames] = useState<Record<string, string>>({});
+  const knownFamilies = useRef(new Set<string>());
 
   useEffect(() => {
     if (!user) return;
@@ -39,25 +43,18 @@ export default function InboxPage() {
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
       setTasks(tasksData);
-      
-      // Fetch names for any families we don't know yet
-      const missingFamilyIds = Array.from(new Set(tasksData.map(t => t.familyId).filter(Boolean))) as string[];
-      if (missingFamilyIds.length > 0) {
-        const newNames = { ...familyNames };
-        let fetchedAny = false;
-        for (const id of missingFamilyIds) {
-          if (!newNames[id]) {
-            const fDoc = await getDoc(doc(db, "families", id));
-            if (fDoc.exists()) {
-              newNames[id] = fDoc.data().name;
-              fetchedAny = true;
-            }
-          }
-        }
-        if (fetchedAny) setFamilyNames(newNames);
-      }
-      
+      // Show tasks right away; workspace names fill in after.
       setLoading(false);
+
+      // Names for workspaces we haven't looked up yet, in parallel. Unreadable ones are skipped.
+      const missing = (Array.from(new Set(tasksData.map(t => t.familyId).filter(Boolean))) as string[]).filter(id => !knownFamilies.current.has(id));
+      missing.forEach(id => knownFamilies.current.add(id));
+      if (missing.length > 0) {
+        const snaps = await Promise.all(missing.map(id => getDoc(doc(db, "families", id)).catch(() => null)));
+        const found: Record<string, string> = {};
+        snaps.forEach(s => { if (s?.exists()) found[s.id] = s.data().name; });
+        if (Object.keys(found).length) setFamilyNames(prev => ({ ...prev, ...found }));
+      }
     }, (err) => {
       console.warn("Inbox tasks listener:", err.message);
       setLoading(false);

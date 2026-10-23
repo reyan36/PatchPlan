@@ -22,7 +22,7 @@ import {
   Eye,
   EyeSlash,
 } from "@phosphor-icons/react";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { NewsSettingsModal } from "@/components/ui/NewsSettingsModal";
 import { ShareModal } from "@/components/ui/ShareModal";
 import { useRouter } from "next/navigation";

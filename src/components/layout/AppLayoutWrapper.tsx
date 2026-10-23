@@ -5,6 +5,7 @@ import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import { useAuth } from "@/lib/AuthContext";
 import { AppSplash } from "@/components/ui/AppSplash";
+import { MaintenanceBanner } from "@/components/layout/MaintenanceBanner";
 
 export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -38,6 +39,7 @@ export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <MaintenanceBanner />
       <Navbar />
       <main className="container mx-auto px-4 py-8 flex-1">
         {children}

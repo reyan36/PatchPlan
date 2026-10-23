@@ -6,7 +6,7 @@ import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
 import { collection, query, where, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { Compass, Plus, Trash, ShareNetwork, SlidersHorizontal, GearSix } from "@phosphor-icons/react";
-import { Login } from "@/components/auth/Login";
+import { Login } from "@/components/auth/LazyLogin";
 import { Modal } from "@/components/ui/Modal";
 import { ShareModal } from "@/components/ui/ShareModal";
 import { RoadmapSettingsModal } from "@/components/ui/RoadmapSettingsModal";
