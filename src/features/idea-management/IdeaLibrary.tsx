@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
 import { FileText, Heart, Kanban, MagnifyingGlass, PencilLine, Plus, Trash, Lightbulb, Scribble } from "@phosphor-icons/react";
 import { db } from "@/lib/firebase";
 import { notifyNewIdea } from "@/lib/discord";
@@ -10,7 +10,9 @@ import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { IDEA_STATUS, TEMPLATES, excerpt, statusOf, toMs, type Idea, type IdeaStatus } from "./ideaMeta";
+import { IDEA_STATUS, TEMPLATES, statusOf, toMs, type Idea, type IdeaStatus } from "./ideaMeta";
+import { createIdea, deleteIdea, ideaHasCanvas, ideaPreview } from "./ideaStore";
+import { personalOnly, scopeIdeas, useLiveQuery } from "@/lib/live";
 
 type Sort = "votes" | "updated" | "newest";
 
@@ -29,7 +31,10 @@ export function IdeaLibrary() {
   const { user } = useAuth();
   const { activeFamily } = useFamily();
   const router = useRouter();
-  const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  // Shared with the dashboard widget; lists read only the light summary docs (ideaStore.ts).
+  const source = user ? scopeIdeas(user.uid, activeFamily?.id) : null;
+  const live = useLiveQuery<Idea>(source?.key ?? null, (fs) => source!.build(fs));
+  const ideas = useMemo(() => (live.ready ? personalOnly(live.error ? [] : live.data, activeFamily?.id) : null), [live.ready, live.data, live.error, activeFamily?.id]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<IdeaStatus | "all">("all");
   const [sort, setSort] = useState<Sort>("updated");
@@ -39,22 +44,6 @@ export function IdeaLibrary() {
   const [busy, setBusy] = useState(false);
   const [toDelete, setToDelete] = useState<Idea | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    const q = activeFamily ? query(collection(db, "ideas"), where("familyId", "==", activeFamily.id)) : query(collection(db, "ideas"), where("userId", "==", user.uid));
-    return onSnapshot(
-      q,
-      (snap) => {
-        let list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Idea);
-        if (!activeFamily) list = list.filter((i) => !i.familyId);
-        setIdeas(list);
-      },
-      (err) => {
-        console.warn("Ideas listener:", err.message);
-        setIdeas([]);
-      }
-    );
-  }, [user, activeFamily]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: ideas?.length || 0 };
@@ -65,7 +54,7 @@ export function IdeaLibrary() {
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
     const list = (ideas || []).filter(
-      (i) => (status === "all" || statusOf(i.status).key === status) && (!q || i.title?.toLowerCase().includes(q) || excerpt(i.content, 2000).toLowerCase().includes(q))
+      (i) => (status === "all" || statusOf(i.status).key === status) && (!q || i.title?.toLowerCase().includes(q) || ideaPreview(i, 2000).toLowerCase().includes(q))
     );
     const edited = (i: Idea) => toMs(i.updatedAt) || toMs(i.createdAt);
     return list.sort((a, b) =>
@@ -79,19 +68,9 @@ export function IdeaLibrary() {
     setBusy(true);
     try {
       const t = TEMPLATES.find((x) => x.key === template) || TEMPLATES[0];
-      const ref = await addDoc(collection(db, "ideas"), {
-        userId: user.uid,
-        familyId: activeFamily ? activeFamily.id : null,
-        title: title.trim(),
-        content: t.content,
-        template: t.key,
-        status: "idea",
-        upvotedBy: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
+      const id = await createIdea({ userId: user.uid, familyId: activeFamily ? activeFamily.id : null }, { title: title.trim(), content: t.content, template: t.key });
       notifyNewIdea(activeFamily?.id || user.uid, title.trim(), user.displayName || user.email || "A teammate").catch(() => {});
-      router.push(`/ideas/${ref.id}`);
+      router.push(`/ideas/${id}`);
     } finally {
       setBusy(false);
     }
@@ -176,7 +155,7 @@ export function IdeaLibrary() {
           {shown.map((i) => {
             const st = statusOf(i.status);
             const voted = !!user && !!i.upvotedBy?.includes(user.uid);
-            const preview = excerpt(i.content);
+            const preview = ideaPreview(i);
             return (
               <div
                 key={i.id}
@@ -211,7 +190,7 @@ export function IdeaLibrary() {
                   >
                     <Heart size={13} weight={voted ? "fill" : "regular"} /> {i.upvotedBy?.length || 0}
                   </button>
-                  {i.canvas && (
+                  {ideaHasCanvas(i) && (
                     <span className="inline-flex items-center gap-1" title="Has a whiteboard">
                       <Scribble size={13} /> Sketch
                     </span>
@@ -282,7 +261,7 @@ export function IdeaLibrary() {
           </button>
           <button
             onClick={async () => {
-              if (toDelete) await deleteDoc(doc(db, "ideas", toDelete.id));
+              if (toDelete) await deleteIdea(toDelete.id);
               setToDelete(null);
             }}
             className="bg-red-500 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-600"

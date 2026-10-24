@@ -25,39 +25,20 @@ import { useAuth } from '@/lib/AuthContext';
 import { useDirty } from '@/lib/DirtyContext';
 import { useFamily } from '@/lib/FamilyContext';
 import { Logo } from "@/components/ui/Logo";
+import { assignedTasks, useLiveQuery } from "@/lib/live";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
   const { handleNavigation } = useDirty();
   const { activeFamily } = useFamily();
-  const [pendingTasksCount, setPendingTasksCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
-  useEffect(() => {
-    if (!user) return;
-
-    // Firestore loads on demand so the navbar doesn't add it to every page's first download.
-    let unsubscribe = () => {};
-    let cancelled = false;
-    import("@/lib/lazyFirestore").then(({ db, collection, query, where, onSnapshot }) => {
-      if (cancelled) return;
-      const q = query(collection(db, "tasks"), where("assigneeId", "==", user.uid));
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const pending = snapshot.docs.filter(doc => doc.data().column !== "Done").length;
-        setPendingTasksCount(pending);
-      }, (error) => {
-        // Graceful error handling for missing permissions or ad blockers
-        console.warn("Navbar tasks listener:", error.message);
-      });
-    }).catch(() => {});
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [user]);
+  // Same listener as the Inbox page (shared), and Firestore loads only once someone is signed in.
+  const assigned = user ? assignedTasks(user.uid) : null;
+  const myTasks = useLiveQuery<{ column?: string }>(assigned?.key ?? null, (fs) => assigned!.build(fs));
+  const pendingTasksCount = (myTasks.data ?? []).filter((t) => t.column !== "Done").length;
 
   // Close the account menu on outside click / Escape.
   useEffect(() => {

@@ -2,18 +2,12 @@
 // ADMIN_EMAILS can use it. The public status page reads the same data through /api/status.
 
 import { FieldValue } from "firebase-admin/firestore";
-import { EmailError, adminDb, emailRoute, verifyUser } from "@/lib/email/server";
-import { MAINTENANCE, isAdmin, toMaintenance } from "@/lib/status/maintenance";
+import { EmailError, adminDb, emailRoute } from "@/lib/email/server";
+import { logEvent, requireAdmin } from "@/lib/security/server";
+import { MAINTENANCE, toMaintenance } from "@/lib/status/maintenance";
 import { COMPONENTS } from "@/lib/status/types";
 
 export const dynamic = "force-dynamic";
-
-async function requireAdmin(req: Request) {
-  const user = await verifyUser(req);
-  if (!process.env.ADMIN_EMAILS) throw new EmailError("Set ADMIN_EMAILS on the server to use this page.", 403);
-  if (!isAdmin(user.email, user.email_verified)) throw new EmailError("This page is for PatchPlan admins only.", 403);
-  return user;
-}
 
 const MAX_SPAN = 7 * 86400000;
 
@@ -41,6 +35,7 @@ export const POST = emailRoute(async (req) => {
   const body = await req.json().catch(() => ({}));
   const db = adminDb();
   const col = db.collection(MAINTENANCE);
+  if (typeof body.action === "string") await logEvent(req, "admin_action", `Maintenance: ${body.action}${body.title ? ` "${String(body.title).slice(0, 60)}"` : ""}`, { uid: user.uid, email: user.email });
 
   switch (body.action) {
     case "create": {

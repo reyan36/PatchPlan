@@ -59,7 +59,7 @@ export async function loadSearchCorpus(user: User, familyId: string | null): Pro
 
   return [
     ...tasks.map((t) => ({ type: "task" as const, id: t.id, title: t.title || "Untitled task", text: `${(t.tags || []).join(" ")} · ${t.column || ""} · ${strip(t.description)}`.slice(0, 600), href: `/board?task=${t.id}` })),
-    ...ideas.map((i) => ({ type: "doc" as const, id: i.id, title: i.title || "Untitled doc", text: strip(i.content).slice(0, 600), href: `/ideas/${i.id}` })),
+    ...ideas.map((i) => ({ type: "doc" as const, id: i.id, title: i.title || "Untitled doc", text: strip(i.preview ?? i.content).slice(0, 600), href: `/ideas/${i.id}` })),
     ...articles.map((a) => ({ type: "devlog" as const, id: a.id, title: a.title || "Untitled article", text: `${a.category || ""} · ${a.status || ""} · ${a.excerpt || ""} ${strip(a.content)}`.slice(0, 600), href: `/news/${a.id}` })),
     ...roadmap.map((r) => ({ type: "roadmap" as const, id: r.id, title: r.title || "Roadmap item", text: `${r.column || ""} · ${r.category || ""} · ${(r.bullets || []).join("; ")}`.slice(0, 600), href: "/roadmap" })),
     ...signals.map((s) => ({ type: "signal" as const, id: s.id, title: s.summary || "Player signal", text: `${s.category} · ${s.status} · ${(s.reports || []).map((r: any) => r.text).join(" ")}`.slice(0, 600), href: "/ai?tab=signal" })),

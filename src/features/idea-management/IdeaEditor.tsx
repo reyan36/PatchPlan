@@ -18,12 +18,13 @@ const IdeaCanvas = dynamic(() => import("./IdeaCanvas"), {
   ssr: false,
   loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground animate-pulse">Loading canvas…</div>,
 });
-import { doc, getDoc, updateDoc, deleteDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { compressImage } from "@/lib/beta/image";
-import { IDEA_STATUS, statusOf, type IdeaStatus } from "./ideaMeta";
+import { IDEA_STATUS, statusOf, type Idea, type IdeaStatus } from "./ideaMeta";
+import { deleteIdea, readIdeaBody, saveIdeaBody } from "./ideaStore";
 import Link from "next/link";
 import { PillSelect } from "@/components/ui/PillSelect";
 import {
@@ -101,11 +102,13 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
       // A doc from another workspace (or one that was deleted) is refused by the rules: show "not found".
       const docSnap = await getDoc(docRef).catch(() => null);
       if (docSnap?.exists()) {
-        const data = docSnap.data();
-        setIdea({ id: docSnap.id, ...data });
+        const data = { id: docSnap.id, ...docSnap.data() } as Idea;
+        // The doc text and whiteboard live in idea_bodies (see ideaStore.ts); older ideas keep them here.
+        const body = await readIdeaBody(data);
+        setIdea({ ...data, content: body.content, canvas: body.canvas, bodySplit: body.fromBody });
         setTitle(data.title || "");
-        if (editor && data.content) {
-          editor.commands.setContent(data.content);
+        if (editor && body.content) {
+          editor.commands.setContent(body.content);
           setIsDirty(false); // Reset dirty after load
         }
       }
@@ -126,20 +129,21 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
 
   // Saves the doc and, if it was opened, the whiteboard, so teammates and other devices see both.
   const handleSave = async () => {
-    if (!editor) return;
+    if (!editor || !idea) return;
     setSaving(true);
     setNotice(null);
     try {
-      const update: Record<string, unknown> = { content: editor.getHTML(), updatedAt: serverTimestamp() };
+      // An idea not split yet carries its saved whiteboard over even if the board wasn't opened.
+      let canvas: string | undefined = idea && !idea.bodySplit ? idea.canvas : undefined;
       if (tldrawEditor) {
         const { getSnapshot } = await import("tldraw");
-        const canvas = JSON.stringify(getSnapshot(tldrawEditor.store).document);
+        const next = JSON.stringify(getSnapshot(tldrawEditor.store).document);
         // Firestore docs cap at 1 MB; very large boards stay on this device only.
-        if (canvas.length < 700_000) update.canvas = canvas;
+        if (next.length < 700_000) canvas = next;
         else setNotice("The whiteboard is too large to sync, so it's saved on this device only. Try removing big images.");
       }
-      await updateDoc(doc(db, "ideas", ideaId), update);
-      if (typeof update.canvas === "string") setIdea((cur: any) => ({ ...cur, canvas: update.canvas }));
+      await saveIdeaBody(idea, { content: editor.getHTML(), canvas });
+      setIdea((cur: any) => ({ ...cur, bodySplit: true, ...(canvas !== undefined ? { canvas } : {}) }));
       setIsDirty(false);
     } catch (err) {
       setNotice(
@@ -220,7 +224,7 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
 
   const confirmDelete = async () => {
     setIsDirty(false); // don't block navigation
-    await deleteDoc(doc(db, "ideas", ideaId));
+    await deleteIdea(ideaId);
     router.push("/ideas");
   };
 

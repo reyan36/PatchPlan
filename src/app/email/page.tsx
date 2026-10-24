@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, setDoc, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, where } from "firebase/firestore";
 import { EnvelopeSimple, Users, PaperPlaneTilt, Gear, ChartLine, Plus, CalendarCheck, Trash, Wrench, Megaphone, FileText, Sparkle } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
@@ -38,7 +38,9 @@ export default function EmailPage() {
   const { activeFamily, loading: familyLoading } = useFamily();
   const [tab, setTab] = useState<TabKey>("overview");
   const [status, setStatus] = useState<EmailStatus | null>(null);
-  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  // The full list loads only on the Subscribers tab; everywhere else uses server-side counts.
+  const [subscribers, setSubscribers] = useState<Subscriber[] | null>(null);
+  const [serverCounts, setServerCounts] = useState<SubscriberCounts | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [settings, setSettings] = useState<EmailSettings>(DEFAULT_SETTINGS);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -61,11 +63,6 @@ export default function EmailPage() {
   useEffect(() => {
     if (!user || !scopeId) return;
     const unsubs = [
-      onSnapshot(
-        query(collection(db, "subscribers"), where("scopeId", "==", scopeId)),
-        (s) => setSubscribers(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Subscriber)),
-        (e) => setError(`Can't read subscribers: ${e.message}. Check Firestore rules (docs/EMAIL.md).`)
-      ),
       onSnapshot(
         familyId ? query(collection(db, "campaigns"), where("familyId", "==", familyId)) : query(collection(db, "campaigns"), where("userId", "==", user.uid)),
         (s) => setCampaigns(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Campaign).filter((c) => familyId || !c.familyId)),
@@ -95,12 +92,32 @@ export default function EmailPage() {
     setDoc(doc(db, "public_configs", scopeId), { emailStudioName: settings.fromName }, { merge: true }).catch(() => {});
   }, [scopeId, publicEmailName, settings.fromName]);
 
-  const counts = useMemo(() => {
-    const active = subscribers.filter((s) => s.status === "active");
-    const c = { all: active.length } as Record<Audience, number>;
-    EMAIL_LISTS.forEach((l) => (c[l.key] = active.filter((s) => s.lists.includes(l.key)).length));
-    return c;
-  }, [subscribers]);
+  // Full subscriber list: only while the Subscribers tab is open.
+  useEffect(() => {
+    if (!user || !scopeId || tab !== "subscribers") return;
+    return onSnapshot(
+      query(collection(db, "subscribers"), where("scopeId", "==", scopeId)),
+      (s) => setSubscribers(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Subscriber)),
+      (e) => setError(`Can't read subscribers: ${e.message}. Check Firestore rules (docs/EMAIL.md).`)
+    );
+  }, [user, scopeId, tab]);
+
+  // Counts are computed by Firestore (about 1 read per 1,000 subscribers) instead of downloading everyone.
+  useEffect(() => {
+    if (!user || !scopeId) return;
+    let live = true;
+    const load = () => loadSubscriberCounts(scopeId).then((c) => live && setServerCounts(c)).catch(() => {});
+    load();
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      live = false;
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [user, scopeId]);
+
+  // Exact live numbers once the list is loaded; server counts before that.
+  const counts: SubscriberCounts = useMemo(() => (subscribers ? countsFromList(subscribers) : serverCounts ?? EMPTY_COUNTS), [subscribers, serverCounts]);
 
   if (authLoading || familyLoading) return <PageLoader label="Loading email" />;
   if (!user) return <Login />;
@@ -176,7 +193,6 @@ export default function EmailPage() {
     }
   };
 
-  const weekAgo = Date.now() - 7 * 86400000;
   const sorted = [...campaigns].sort((a, b) => (toMs(b.sentAt) || toMs(b.updatedAt) || toMs(b.createdAt)) - (toMs(a.sentAt) || toMs(a.updatedAt) || toMs(a.createdAt)));
 
   return (
@@ -227,8 +243,8 @@ export default function EmailPage() {
               )}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <Stat label="Active subscribers" value={counts.all} />
-                <Stat label="New this week" value={subscribers.filter((s) => toMs(s.createdAt) > weekAgo).length} />
-                <Stat label="Unsubscribed" value={subscribers.filter((s) => s.status === "unsubscribed").length} />
+                <Stat label="New this week" value={counts.newThisWeek} />
+                <Stat label="Unsubscribed" value={counts.unsubscribed} />
                 <Stat label="Emails sent" value={campaigns.filter((c) => c.status === "sent").reduce((n, c) => n + (c.recipients || 0), 0)} />
               </div>
 
@@ -272,7 +288,7 @@ export default function EmailPage() {
           {tab === "subscribers" && (
             <div className="space-y-4">
               <SignupShare scopeId={scopeId} />
-              <Subscribers scopeId={scopeId} subscribers={subscribers} />
+              {subscribers ? <Subscribers scopeId={scopeId} subscribers={subscribers} /> : <div className="h-40 rounded-xl border border-white/10 bg-white/[0.02] animate-pulse" />}
             </div>
           )}
 
@@ -298,10 +314,37 @@ export default function EmailPage() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+type SubscriberCounts = Record<Audience, number> & { unsubscribed: number; newThisWeek: number | null };
+const EMPTY_COUNTS = { all: 0, unsubscribed: 0, newThisWeek: 0 } as SubscriberCounts;
+
+function countsFromList(list: Subscriber[]): SubscriberCounts {
+  const active = list.filter((s) => s.status === "active");
+  const weekAgo = Date.now() - 7 * 86400000;
+  const c = { all: active.length, unsubscribed: list.filter((s) => s.status === "unsubscribed").length, newThisWeek: list.filter((s) => toMs(s.createdAt) > weekAgo).length } as SubscriberCounts;
+  EMAIL_LISTS.forEach((l) => (c[l.key] = active.filter((s) => s.lists.includes(l.key)).length));
+  return c;
+}
+
+async function loadSubscriberCounts(scopeId: string): Promise<SubscriberCounts> {
+  const col = collection(db, "subscribers");
+  const count = (...filters: Parameters<typeof where>[]) =>
+    getCountFromServer(query(col, where("scopeId", "==", scopeId), ...filters.map((f) => where(...f)))).then((r) => r.data().count);
+  const [all, unsubscribed, ...lists] = await Promise.all([
+    count(["status", "==", "active"]),
+    count(["status", "==", "unsubscribed"]),
+    ...EMAIL_LISTS.map((l) => count(["status", "==", "active"], ["lists", "array-contains", l.key])),
+  ]);
+  // Needs the composite index in firestore.indexes.json (subscribers: scopeId + createdAt); "—" until it exists.
+  const newThisWeek = await count(["createdAt", ">=", Timestamp.fromMillis(Date.now() - 7 * 86400000)]).catch(() => null);
+  const c = { all, unsubscribed, newThisWeek } as SubscriberCounts;
+  EMAIL_LISTS.forEach((l, i) => (c[l.key] = lists[i]));
+  return c;
+}
+
+function Stat({ label, value }: { label: string; value: number | null }) {
   return (
     <Panel className="p-4">
-      <div className="text-2xl font-semibold text-white tabular-nums">{value.toLocaleString()}</div>
+      <div className="text-2xl font-semibold text-white tabular-nums">{value == null ? "—" : value.toLocaleString()}</div>
       <div className="text-xs text-zinc-500 mt-0.5">{label}</div>
     </Panel>
   );

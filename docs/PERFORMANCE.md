@@ -51,3 +51,22 @@ Measured on a production build (`next build` + `next start`) with headless Chrom
 - **Changelog and Status on a phone:** blocking time rose by 60–80 ms, because Firebase Auth now initializes just after the page appears instead of with it. The pages appear sooner overall.
 - **App pages opened while signed out** block for longer on a phone, because of the sign-in card's animated pixel grid (`PatchGrid`, still on GSAP). Converting it to a canvas like the landing grid would fix this.
 - Signed-in pages couldn't be timed here without a test account. Their JavaScript sizes above are exact.
+
+## Data loading (Firestore)
+
+Firestore bills per document read (free plan: 50,000/day), so the goal is to read each document as few times as possible.
+
+| Pattern | Where | Effect |
+|---|---|---|
+| Persistent offline cache | `lib/firebase.ts` | Pages paint from IndexedDB first; reconnecting within 30 min only re-reads changed docs |
+| Shared live queries (`lib/live.ts`) | Board, Inbox, navbar badge, Player Signal, Ideas, dashboard ideas widget | One listener per query no matter how many screens use it; kept 60 s after leaving a page so going back is instant and free |
+| List/detail split (`ideaStore.ts`) | Ideas | Lists read a small summary (title, status, preview); the doc text and whiteboard (`idea_bodies`) load only when an idea is opened |
+| Server-side counts (`getCountFromServer`) | Email overview | ~1 read per 1,000 subscribers instead of downloading every subscriber; the full list loads only on the Subscribers tab |
+| Skip no-op writes | Task description | Leaving the editor without changes no longer writes |
+
+Rules of thumb for new screens:
+
+- Use `useLiveQuery` / `useLiveDoc` with a key that includes the user and workspace ids; put shared queries in `lib/live.ts`.
+- Keep big fields (HTML, drawings, images) out of documents that lists read.
+- Use `getCountFromServer` for numbers; don't download a collection to count it.
+- Queries that combine `==` on one field with a range or `orderBy` on another need a composite index (`firestore.indexes.json`).

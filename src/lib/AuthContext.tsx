@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { clearLive } from "./live";
 import type { User } from "firebase/auth";
 
 // Firebase Auth is loaded after the page is interactive, so it never blocks first paint.
@@ -44,6 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [signedInHint, setSignedInHint] = useState<boolean | null | undefined>(undefined);
   const [signingOut, setSigningOut] = useState(false);
+  const lastUid = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     try {
@@ -59,6 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .then(({ auth, onAuthStateChanged }) => {
         if (cancelled) return;
         unsubscribe = onAuthStateChanged(auth, (user) => {
+          // Another account (or signed out): drop shared live data from the previous one.
+          if (lastUid.current !== undefined && lastUid.current !== (user?.uid ?? null)) clearLive();
+          lastUid.current = user?.uid ?? null;
           setUser(user);
           setLoading(false);
           setSignedInHint(!!user);

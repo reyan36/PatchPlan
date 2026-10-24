@@ -7,7 +7,8 @@ import { useFamily, Member } from "@/lib/FamilyContext";
 import { Login } from "@/components/auth/LazyLogin";
 import { notifyTaskCompleted } from "@/lib/discord";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { personalOnly, scopeTasks, useLiveDoc, useLiveQuery } from "@/lib/live";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
@@ -50,9 +51,32 @@ export default function BoardPage() {
   const [columns, setColumns] = useState<string[]>([]);
   const [edgeScrollEnabled, setEdgeScrollEnabled] = useState(true);
   
-  // Loading States
-  const [configLoaded, setConfigLoaded] = useState(false);
-  const [tasksLoaded, setTasksLoaded] = useState(false);
+  // Live data, shared with other screens and kept warm between visits (lib/live.ts).
+  const familyId = activeFamily?.id ?? null;
+  const scopeId = user ? familyId || user.uid : null;
+  const taskSource = user ? scopeTasks(user.uid, familyId) : null;
+  const liveTasks = useLiveQuery<Task>(taskSource?.key ?? null, (fs) => taskSource!.build(fs));
+  const liveConfig = useLiveDoc<{ columns?: string[]; edgeScrollEnabled?: boolean }>(scopeId && `board_configs/${scopeId}`, (fs) => fs.doc(fs.db, "board_configs", scopeId!));
+  const configLoaded = liveConfig.ready;
+  const tasksLoaded = liveTasks.ready;
+
+  // Local copy so drag-and-drop can move a card before Firestore confirms.
+  useEffect(() => {
+    if (liveTasks.data) setTasks(personalOnly(liveTasks.data, familyId));
+  }, [liveTasks.data, familyId]);
+
+  useEffect(() => {
+    if (!liveConfig.ready || !scopeId) return;
+    if (liveConfig.data) {
+      setColumns(liveConfig.data.columns || []);
+      setEdgeScrollEnabled(liveConfig.data.edgeScrollEnabled ?? true);
+    } else if (liveConfig.data === null) {
+      // First visit to this workspace's board: create the default columns.
+      const defaultCols = ["Backlog", "To Do", "In Progress", "Review", "Done"];
+      setDoc(doc(db, "board_configs", scopeId), { columns: defaultCols, edgeScrollEnabled: true }).catch(() => {});
+      setColumns(defaultCols);
+    }
+  }, [liveConfig.ready, liveConfig.data, scopeId]);
   
   // UI State
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null);
@@ -119,58 +143,6 @@ export default function BoardPage() {
     };
   }, [edgeScrollEnabled, configLoaded, tasksLoaded]);
 
-  // Firebase Subscriptions
-  useEffect(() => {
-    if (!user) return; // User must be logged in
-    
-    // If activeFamily is set, use it. Otherwise use user.uid (Personal Mode)
-    const scopeId = activeFamily ? activeFamily.id : user.uid;
-
-    // Board Config (Columns and Settings)
-    const configRef = doc(db, "board_configs", scopeId);
-    const unsubscribeConfig = onSnapshot(configRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setColumns(data.columns || []);
-        setEdgeScrollEnabled(data.edgeScrollEnabled ?? true);
-      } else {
-        // Create default config
-        const defaultCols = ["Backlog", "To Do", "In Progress", "Review", "Done"];
-        setDoc(configRef, { columns: defaultCols, edgeScrollEnabled: true });
-        setColumns(defaultCols);
-      }
-      setConfigLoaded(true);
-    }, (err) => {
-      console.warn("Board config listener:", err.message);
-      setConfigLoaded(true);
-    });
-
-    // Tasks Collection scoped to family or personal
-    const q = activeFamily 
-      ? query(collection(db, "tasks"), where("familyId", "==", activeFamily.id))
-      : query(collection(db, "tasks"), where("userId", "==", user.uid));
-
-    const unsubscribeTasks = onSnapshot(q, (snapshot) => {
-      let tasksData = snapshot.docs.map(d => ({ id: d.id, ...d.data() })) as Task[];
-      
-      // If we are in personal mode, filter out tasks that belong to a family 
-      // (because a user's family tasks ALSO have their userId, but we only want pure personal tasks here)
-      if (!activeFamily) {
-        tasksData = tasksData.filter(t => !t.familyId);
-      }
-      
-      setTasks(tasksData);
-      setTasksLoaded(true);
-    }, (err) => {
-      console.warn("Board tasks listener:", err.message);
-      setTasksLoaded(true);
-    });
-
-    return () => {
-      unsubscribeConfig();
-      unsubscribeTasks();
-    };
-  }, [user, activeFamily]);
 
   if (authLoading || familyLoading) return <div className="p-8 animate-pulse text-muted-foreground">Loading...</div>;
   if (!user) return <Login />;

@@ -23,6 +23,9 @@ export type Idea = {
   familyId?: string | null;
   taskId?: string | null;
   canvas?: string;
+  /** Plain-text start of the doc, kept on the summary for lists and search (see ideaStore.ts). */
+  preview?: string;
+  hasCanvas?: boolean;
   template?: string;
   createdAt?: any;
   updatedAt?: any;

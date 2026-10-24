@@ -12,11 +12,16 @@ const MentionComponent = ({ node, updateAttributes }: any) => {
   useEffect(() => {
     if (!title && href) {
       setLoading(true);
-      fetch(`/api/metadata?url=${encodeURIComponent(href)}`)
+      import("@/lib/firebase-app")
+        .then(({ auth }) => auth.currentUser?.getIdToken())
+        .then((token) =>
+          fetch(`/api/metadata?url=${encodeURIComponent(href)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+        )
         .then(res => res.json())
         .then(data => {
+          // Errors (signed out, rate limited) fall back to the raw link so this doesn't refetch.
           updateAttributes({
-            title: data.title,
+            title: data.title || href,
             icon: data.icon,
             domain: data.domain
           });

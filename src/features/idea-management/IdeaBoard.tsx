@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Plus, ArrowRight, Trash, Heart, Lightbulb } from "@phosphor-icons/react";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, arrayUnion, arrayRemove, query, where } from "firebase/firestore";
+import { updateDoc, doc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { excerpt, statusOf } from "./ideaMeta";
+import { statusOf, type Idea } from "./ideaMeta";
+import { createIdea, deleteIdea, ideaPreview } from "./ideaStore";
+import { personalOnly, scopeIdeas, useLiveQuery } from "@/lib/live";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { useDirty } from "@/lib/DirtyContext";
@@ -13,71 +15,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export function IdeaBoard() {
-  const [ideas, setIdeas] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newIdeaTitle, setNewIdeaTitle] = useState("");
   const [ideaToDelete, setIdeaToDelete] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
   const { activeFamily } = useFamily();
   const { handleNavigation } = useDirty();
   const router = useRouter();
 
-  // ... (useEffect and other handlers remain the same)
-  useEffect(() => {
-    if (!user) return;
-    
-    const q = activeFamily
-      ? query(collection(db, "ideas"), where("familyId", "==", activeFamily.id))
-      : query(collection(db, "ideas"), where("userId", "==", user.uid));
+  // Same listener as the Ideas page; top five by votes.
+  const source = user ? scopeIdeas(user.uid, activeFamily?.id) : null;
+  const live = useLiveQuery<Idea>(source?.key ?? null, (fs) => source!.build(fs));
+  const loading = !live.ready;
+  const ideas = useMemo(
+    () => personalOnly(live.data, activeFamily?.id).slice().sort((a, b) => (b.upvotedBy?.length || 0) - (a.upvotedBy?.length || 0)).slice(0, 5),
+    [live.data, activeFamily?.id]
+  );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let ideasData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      // If personal mode, filter out ideas that belong to a family
-      if (!activeFamily) {
-        ideasData = ideasData.filter((i: any) => !i.familyId);
-      }
-      
-      // Sort by upvotes count
-      ideasData.sort((a: any, b: any) => {
-        const aVotes = a.upvotedBy?.length || 0;
-        const bVotes = b.upvotedBy?.length || 0;
-        return bVotes - aVotes;
-      });
-      
-      setIdeas(ideasData.slice(0, 5));
-      setLoading(false);
-    }, (error) => {
-      console.warn("IdeaBoard listener error:", error.message);
-      setLoading(false);
-    });
-    
-    return () => unsubscribe();
-  }, [user, activeFamily]);
 
   const handleAddIdea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newIdeaTitle.trim()) return;
 
-    const docRef = await addDoc(collection(db, "ideas"), {
-      userId: user.uid,
-      familyId: activeFamily ? activeFamily.id : null,
-      title: newIdeaTitle.trim(),
-      upvotedBy: [],
-      content: "",
-      status: "idea",
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
+    const id = await createIdea({ userId: user.uid, familyId: activeFamily ? activeFamily.id : null }, { title: newIdeaTitle.trim(), content: "" });
     
     setIsModalOpen(false);
     setNewIdeaTitle("");
     
-    router.push(`/ideas/${docRef.id}`);
+    router.push(`/ideas/${id}`);
   };
 
   const handleVote = async (e: React.MouseEvent, id: string, upvotedBy: string[]) => {
@@ -99,7 +64,7 @@ export function IdeaBoard() {
 
   const confirmDelete = async () => {
     if (ideaToDelete) {
-      await deleteDoc(doc(db, "ideas", ideaToDelete));
+      await deleteIdea(ideaToDelete);
       setIdeaToDelete(null);
     }
   };
@@ -129,7 +94,7 @@ export function IdeaBoard() {
         <div className="grid gap-4">
           {ideas.map((idea) => {
             const votesCount = idea.upvotedBy?.length || 0;
-            const hasVoted = idea.upvotedBy?.includes(user?.uid);
+            const hasVoted = !!user && !!idea.upvotedBy?.includes(user.uid);
             
             return (
               <div 
@@ -141,7 +106,7 @@ export function IdeaBoard() {
                   <h3 className="font-medium group-hover:text-primary transition-colors truncate">{idea.title}</h3>
                   <p className="text-xs text-muted-foreground mt-1 truncate">
                     <span className="text-zinc-400">{statusOf(idea.status).label}</span>
-                    {excerpt(idea.content, 90) ? ` · ${excerpt(idea.content, 90)}` : ""}
+                    {ideaPreview(idea, 90) ? ` · ${ideaPreview(idea, 90)}` : ""}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

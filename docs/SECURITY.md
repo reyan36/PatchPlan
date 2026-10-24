@@ -45,3 +45,51 @@ Firebase console → Firestore → Rules → **Rules history** → pick the prev
 
 - The rules couldn't be run in the Firestore emulator here (it needs Java). They were checked against every query and write in the app: each list query filters on a field the rules can check (`familyId`, `userId`, `scopeId`, `assigneeId` or `testerUid`).
 - Server routes use Firebase Admin, which isn't affected by these rules.
+
+# Monitoring and alerts
+
+## How you find out about an attack
+
+| Channel | When |
+|---|---|
+| **Email** to everyone in `ADMIN_EMAILS` | Immediately for high-severity events; once per 30 min when 20+ suspicious requests arrive within 10 minutes |
+| **Discord** (optional, `SECURITY_WEBHOOK_URL`) | Same alerts, instantly on your phone |
+| **`/admin/security`** | Full log for the last 7 days: counts, most active IPs, every event. "Send test alert" checks delivery. |
+| **Google Cloud Monitoring** (set up once, see below) | Firestore rule denials and traffic spikes, which happen in the browser and never reach our server |
+
+## What gets logged (`security_events`, server-only, kept 30 days)
+
+| Event | Severity | Meaning |
+|---|---|---|
+| Admin API denied | high | A signed-in non-admin called an admin API |
+| Invalid sign-in token | warn | Forged or malformed token (expired ones are normal and ignored) |
+| Access to another workspace | warn | Signed-in user asked for a studio they're not in |
+| Rate limit hit | warn | Over 120 API requests/min from one IP, 20 AI calls/min per user, 30 link previews/min |
+| Daily AI limit reached | warn | An account used its 300 AI calls for the day |
+| Cron called without secret | warn | Someone tried to trigger the daily email job |
+| Blocked internal URL | warn | Link preview asked for a private address (SSRF attempt) |
+| Admin action / Studio deleted / Ownership transferred | info | Audit trail, no alert |
+
+During a flood, each server instance writes at most 40 events a minute and counts the rest (`+N more`), so an attack can't run up Firestore usage.
+
+## Protections in place
+
+- Security headers on every page: no framing by other sites (except `/p/*` public pages), `nosniff`, HSTS, strict referrer, camera/mic/location disabled, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`.
+- All API routes: per-IP rate limit. AI routes: per-user per-minute and daily limits (`ai_usage`), so a stolen account can't drain the AI budget.
+- Sign-in tokens are verified locally with Firebase Admin (no API-key lookups from the server).
+- `/api/metadata` (link previews): signed-in only, public http(s) hosts only, redirects re-checked, 256 KB read limit.
+- The open image proxy (`images.remotePatterns: **`) was removed; nothing used it.
+
+## One-time console setup
+
+1. **Google Cloud Monitoring alerts** (free): console.cloud.google.com → Monitoring → Alerting → Create policy.
+   - Metric `Firestore Instance → Rules evaluation count`, filter `result = DENY`, threshold e.g. > 200 in 5 min. Spots someone poking at the database directly.
+   - Metric `Firestore Instance → Document reads`, threshold e.g. > 20,000 in 1 hour. Spots scraping before the free quota (50k/day) runs out.
+   - Notification channel: your email (and the Google Cloud mobile app if you want push).
+2. **Restrict the Firebase browser API key**: Google Cloud → APIs & Services → Credentials → "Browser key (auto created by Firebase)" → Application restrictions: Websites → `https://patchplan.net/*`, `http://localhost:3000/*` (plus `https://*.vercel.app/*` if you use preview deploys). The server no longer uses this key, so nothing breaks.
+3. **Firebase Authentication → Settings**:
+   - Authorized domains: keep only `patchplan.net`, `localhost` and the Firebase defaults; remove old `*.vercel.app` entries you don't use.
+   - User actions: turn on **Email enumeration protection**.
+   - Password policy: require at least 8 characters with a number.
+4. **App Check** (later, optional): register reCAPTCHA v3, then enforce for Firestore so only patchplan.net can use your Firebase project. Needs a code change; ask before enabling enforcement or local dev breaks.
+5. **GitHub**: Settings → Code security → turn on Dependabot alerts and secret scanning.

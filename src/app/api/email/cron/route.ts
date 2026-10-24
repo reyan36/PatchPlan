@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { buildDigest } from "@/lib/email/digest";
 import { adminDb, appUrl, loadSettings, sendToSubscribers, studioName } from "@/lib/email/server";
+import { logEvent, pruneEvents } from "@/lib/security/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,8 +17,12 @@ const ms = (ts: any): number => (ts?.toMillis ? ts.toMillis() : 0);
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
   if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+    await logEvent(req, "cron_unauthorized", "Daily email cron called without the right secret");
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // Housekeeping: security events older than 30 days.
+  await pruneEvents().catch(() => 0);
 
   const db = adminDb();
   const base = appUrl(req);

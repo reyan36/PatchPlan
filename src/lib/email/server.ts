@@ -8,6 +8,7 @@ import { renderEmail, renderText } from "./render";
 import type { Audience, EmailBlock, EmailSettings, EmailTheme } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import { markDomainUnverified, senderAddress } from "./domains";
+import { clientIp, enforceLimit, logEvent } from "@/lib/security/server";
 
 export class EmailError extends Error {
   /** For send failures: messages delivered before the error. */
@@ -56,10 +57,24 @@ export function appUrl(req?: Request) {
 export async function verifyUser(req: Request) {
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw new EmailError("Sign in first.", 401);
-  adminDb();
-  const decoded = await getAuth(app!).verifyIdToken(token).catch(() => null);
+  const decoded = await checkIdToken(req, token);
   if (!decoded) throw new EmailError("Your session expired. Sign in again.", 401);
   return decoded;
+}
+
+/**
+ * Verifies a Firebase ID token locally (signature + expiry) with Firebase Admin.
+ * Expired tokens are normal (old tabs); anything else is a forged or broken token and gets logged.
+ */
+export async function checkIdToken(req: Request, token: string) {
+  adminDb();
+  try {
+    return await getAuth(app!).verifyIdToken(token);
+  } catch (err) {
+    const code = (err as { code?: string })?.code || "";
+    if (code !== "auth/id-token-expired") void logEvent(req, "auth_invalid", code || "Token failed verification");
+    return null;
+  }
 }
 
 export async function requireMember(req: Request, scopeId: string) {
@@ -69,6 +84,7 @@ export async function requireMember(req: Request, scopeId: string) {
     const fam = await adminDb().collection("families").doc(scopeId).get();
     const members: { uid: string }[] = fam.data()?.members || [];
     if (!fam.exists || (fam.data()?.ownerId !== decoded.uid && !members.some((m) => m.uid === decoded.uid))) {
+      await logEvent(req, "forbidden", `Tried workspace ${scopeId.slice(0, 40)}`, { uid: decoded.uid, email: decoded.email });
       throw new EmailError("You're not a member of this workspace.", 403);
     }
   }
@@ -258,6 +274,8 @@ export async function sendTransactional(scopeId: string, to: string, subject: st
 export function emailRoute(handler: (req: Request) => Promise<unknown>) {
   return async (req: Request) => {
     try {
+      // Per-IP ceiling across all these routes; normal use stays far below it.
+      enforceLimit(req, `api:${clientIp(req)}`, 120, 60_000);
       return Response.json(await handler(req));
     } catch (err) {
       const status = err instanceof EmailError ? err.status : 500;

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { assignedTasks, useLiveQuery } from "@/lib/live";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily, Family } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
-import { collection, query, where, onSnapshot, doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { Bell, Clock, ArrowRight, CheckSquare, WarningCircle } from "@phosphor-icons/react";
 import { Login } from "@/components/auth/LazyLogin";
 import Link from "next/link";
@@ -26,8 +27,11 @@ type Task = {
 export default function InboxPage() {
   const { user, loading: authLoading } = useAuth();
   const { activeFamily } = useFamily();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Shared with the navbar badge, so opening the inbox needs no new listener.
+  const assigned = user ? assignedTasks(user.uid) : null;
+  const live = useLiveQuery<Task>(assigned?.key ?? null, (fs) => assigned!.build(fs));
+  const tasks = live.data ?? [];
+  const loading = !live.ready;
   
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   
@@ -35,33 +39,17 @@ export default function InboxPage() {
   const [familyNames, setFamilyNames] = useState<Record<string, string>>({});
   const knownFamilies = useRef(new Set<string>());
 
+  // Names for workspaces we haven't looked up yet, in parallel. Unreadable ones are skipped.
   useEffect(() => {
-    if (!user) return;
-    
-    // Fetch all tasks assigned to the current user (across all families + personal)
-    const q = query(collection(db, "tasks"), where("assigneeId", "==", user.uid));
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const tasksData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Task[];
-      setTasks(tasksData);
-      // Show tasks right away; workspace names fill in after.
-      setLoading(false);
-
-      // Names for workspaces we haven't looked up yet, in parallel. Unreadable ones are skipped.
-      const missing = (Array.from(new Set(tasksData.map(t => t.familyId).filter(Boolean))) as string[]).filter(id => !knownFamilies.current.has(id));
-      missing.forEach(id => knownFamilies.current.add(id));
-      if (missing.length > 0) {
-        const snaps = await Promise.all(missing.map(id => getDoc(doc(db, "families", id)).catch(() => null)));
-        const found: Record<string, string> = {};
-        snaps.forEach(s => { if (s?.exists()) found[s.id] = s.data().name; });
-        if (Object.keys(found).length) setFamilyNames(prev => ({ ...prev, ...found }));
-      }
-    }, (err) => {
-      console.warn("Inbox tasks listener:", err.message);
-      setLoading(false);
+    const missing = (Array.from(new Set(tasks.map((t) => t.familyId).filter(Boolean))) as string[]).filter((id) => !knownFamilies.current.has(id));
+    if (!missing.length) return;
+    missing.forEach((id) => knownFamilies.current.add(id));
+    Promise.all(missing.map((id) => getDoc(doc(db, "families", id)).catch(() => null))).then((snaps) => {
+      const found: Record<string, string> = {};
+      snaps.forEach((s) => { if (s?.exists()) found[s.id] = s.data().name; });
+      if (Object.keys(found).length) setFamilyNames((prev) => ({ ...prev, ...found }));
     });
-
-    return () => unsubscribe();
-  }, [user]);
+  }, [tasks]);
 
   if (authLoading || loading) return <div className="p-8 animate-pulse text-muted-foreground">Loading Inbox...</div>;
   if (!user) return <Login />;

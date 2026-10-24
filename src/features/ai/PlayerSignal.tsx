@@ -18,6 +18,7 @@ import {
 } from "firebase/firestore";
 import { ArrowsClockwise, CaretDown, CheckCircle, Link as LinkIcon, Plus, Rocket, X } from "@phosphor-icons/react";
 import { db } from "@/lib/firebase";
+import { personalOnly, scopeTasks, useLiveQuery } from "@/lib/live";
 import { notifyPatchNotes } from "@/lib/discord";
 import { aiFetch, scopeFields, type AIStatus } from "@/lib/ai/client";
 import type { FeedbackItem, PatchNotesDraft, ShippedTask, SignalCluster, TaskBrief, TaskTag } from "@/lib/ai/types";
@@ -44,7 +45,10 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
   const scopeId = familyId || user.uid;
 
   const [signals, setSignals] = useState<Signal[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  // Same listener as the board (shared), so switching between them costs nothing.
+  const taskSource = scopeTasks(user.uid, familyId);
+  const liveTasks = useLiveQuery<Task>(taskSource.key, (fs) => taskSource.build(fs));
+  const tasks = useMemo(() => personalOnly(liveTasks.data, familyId), [liveTasks.data, familyId]);
   const [sources, setSources] = useState<Sources>({ gameName: "", subreddit: "", feedbackChannelId: "" });
   const [manual, setManual] = useState("");
   const [showSources, setShowSources] = useState(false);
@@ -62,12 +66,8 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
       (s) => setSignals(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Signal).filter((x) => familyId || !(x as any).familyId)),
       (e) => setError(`Can't read player signals: ${e.message}. Check your Firestore rules allow the "signals" collection.`)
     );
-    const unsubTasks = onSnapshot(scoped("tasks"), (s) =>
-      setTasks(s.docs.map((d) => ({ id: d.id, ...d.data() }) as Task).filter((t) => familyId || !t.familyId))
-    );
     return () => {
       unsubSignals();
-      unsubTasks();
     };
   }, [user.uid, familyId]);
 

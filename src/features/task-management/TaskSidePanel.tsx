@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { X, TextAlignLeft, UserCircle, SquaresFour, CheckSquare, Tag, CalendarBlank, Clock } from "@phosphor-icons/react";
 
 function formatTimeAgo(date: Date) {
@@ -37,7 +37,9 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
   const { activeFamily } = useFamily();
   const [task, setTask] = useState<any>(null);
   const [title, setTitle] = useState("");
-  
+  // Last description saved or received, so leaving the editor unchanged doesn't cost a write.
+  const savedDescription = useRef("");
+
   const editor = useEditor({
     extensions: [StarterKit],
     content: '',
@@ -46,11 +48,11 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
         class: 'prose prose-sm dark:prose-invert focus:outline-none min-h-[150px] cursor-text',
       },
     },
-    onUpdate: ({ editor }) => {
-      // Debounce this in a real app, but for now we'll update on blur
-    },
     onBlur: async ({ editor }) => {
-      await updateDoc(doc(db, "tasks", taskId), { description: editor.getHTML() });
+      const html = editor.isEmpty ? "" : editor.getHTML();
+      if (html === savedDescription.current) return;
+      savedDescription.current = html;
+      await updateDoc(doc(db, "tasks", taskId), { description: html });
     }
   });
 
@@ -60,6 +62,7 @@ export function TaskSidePanel({ taskId, onClose, columns }: TaskSidePanelProps) 
         const data = docSnap.data();
         setTask(data);
         setTitle(data.title || "");
+        savedDescription.current = data.description || "";
         if (editor && data.description && editor.getHTML() !== data.description) {
           editor.commands.setContent(data.description);
         }

@@ -4,11 +4,12 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { EmailError, adminDb, emailRoute, verifyUser } from "@/lib/email/server";
 import { removeDomain } from "@/lib/email/domains";
+import { logEvent } from "@/lib/security/server";
 
 export const dynamic = "force-dynamic";
 
 // Studio data, by how it's scoped.
-const BY_FAMILY_ID = ["tasks", "ideas", "articles", "roadmap", "signals", "modules", "module_rows", "campaigns"];
+const BY_FAMILY_ID = ["tasks", "ideas", "idea_bodies", "articles", "roadmap", "signals", "modules", "module_rows", "campaigns"];
 const BY_SCOPE_ID = ["contacts", "subscribers", "beta_testers", "beta_reports", "beta_files"];
 const BY_DOC_ID = ["board_configs", "integrations", "email_settings", "public_configs", "roadmap_configs", "beta_programs"];
 
@@ -50,6 +51,7 @@ export const POST = emailRoute(async (req) => {
       ownerId: to,
       members: members.map((m) => ({ ...m, role: m.uid === to ? "owner" : m.uid === user.uid ? "worker" : m.role })),
     });
+    await logEvent(req, "ownership_transferred", `${String(data.name || familyId).slice(0, 80)} → ${to}`, { uid: user.uid, email: user.email });
     return { ok: true };
   }
 
@@ -71,6 +73,7 @@ export const POST = emailRoute(async (req) => {
     });
     batch.delete(ref);
     await batch.commit();
+    await logEvent(req, "studio_deleted", `${String(data.name || familyId).slice(0, 80)} (${deleted} docs)`, { uid: user.uid, email: user.email });
     return { ok: true, deleted };
   }
 

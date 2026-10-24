@@ -102,6 +102,14 @@ service cloud.firestore {
       allow update: if scopedUpdate();
     }
 
+    // Doc text and whiteboard of an idea, loaded only when it's opened (lists read the light
+    // ideas/{id} summary). Same scope fields and access as the idea.
+    match /idea_bodies/{id} {
+      allow read, delete: if scopedRead();
+      allow create: if scopedCreate();
+      allow update: if scopedUpdate();
+    }
+
     match /campaigns/{id} {
       allow read, delete: if scopedRead();
       allow create: if scopedCreate();
