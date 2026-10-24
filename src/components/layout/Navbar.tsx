@@ -20,6 +20,7 @@ import {
   CaretDown,
   Play,
   Flask,
+  MagnifyingGlass,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/AuthContext';
 import { useDirty } from '@/lib/DirtyContext';
@@ -151,8 +152,20 @@ export default function Navbar() {
               ))}
             </div>
 
-            {/* Inbox + account */}
+            {/* Search + inbox + account */}
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event("pp:open-palette"))}
+                title="Search and jump anywhere"
+                aria-label="Open command palette"
+                className="h-9 inline-flex items-center gap-2 pl-2.5 pr-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <MagnifyingGlass size={17} />
+                <kbd suppressHydrationWarning className="hidden lg:inline-flex items-center h-5 px-1.5 rounded border border-white/10 bg-white/[0.04] text-[10px] font-medium font-sans text-zinc-500">
+                  {typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
+                </kbd>
+              </button>
               <button
                 type="button"
                 onClick={() => handleNavigation("/inbox")}

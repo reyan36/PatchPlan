@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { arrayRemove, arrayUnion, doc, updateDoc } from "firebase/firestore";
 import { FileText, Heart, Kanban, MagnifyingGlass, PencilLine, Plus, Trash, Lightbulb, Scribble } from "@phosphor-icons/react";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { IDEA_STATUS, TEMPLATES, statusOf, toMs, type Idea, type IdeaStatus } from "./ideaMeta";
 import { createIdea, deleteIdea, ideaHasCanvas, ideaPreview } from "./ideaStore";
 import { personalOnly, scopeIdeas, useLiveQuery } from "@/lib/live";
+import { PAGE_EVENTS } from "@/features/command/commands";
 
 type Sort = "votes" | "updated" | "newest";
 
@@ -43,7 +44,6 @@ export function IdeaLibrary() {
   const [template, setTemplate] = useState("blank");
   const [busy, setBusy] = useState(false);
   const [toDelete, setToDelete] = useState<Idea | null>(null);
-
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: ideas?.length || 0 };
@@ -88,6 +88,17 @@ export function IdeaLibrary() {
     setTitle("");
     setCreating(true);
   };
+
+  // "New doc" from the command palette: /ideas?new=1, or an event when this page is already open.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new")) {
+      openNew();
+      window.history.replaceState(null, "", "/ideas");
+    }
+    const onNew = () => openNew();
+    window.addEventListener(PAGE_EVENTS.newIdea, onNew);
+    return () => window.removeEventListener(PAGE_EVENTS.newIdea, onNew);
+  }, []);
 
   return (
     <div className="space-y-6">

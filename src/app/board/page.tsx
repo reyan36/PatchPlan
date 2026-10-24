@@ -9,6 +9,7 @@ import { notifyTaskCompleted } from "@/lib/discord";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { personalOnly, scopeTasks, useLiveDoc, useLiveQuery } from "@/lib/live";
+import { PAGE_EVENTS } from "@/features/command/commands";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import Link from "next/link";
@@ -96,11 +97,29 @@ export default function BoardPage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const mouseX = useRef<number | null>(null);
 
-  // Deep link from search: /board?task=<id>
+  // Deep links from search and the command palette: /board?task=<id> opens a task, /board?new=1
+  // starts a new one. When the board is already open, the palette sends events instead.
+  const [wantNewTask, setWantNewTask] = useState(false);
   useEffect(() => {
-    const taskParam = new URLSearchParams(window.location.search).get("task");
+    const params = new URLSearchParams(window.location.search);
+    const taskParam = params.get("task");
     if (taskParam) setSelectedTaskId(taskParam);
+    if (params.get("new")) setWantNewTask(true);
+    const onOpen = (e: Event) => setSelectedTaskId((e as CustomEvent<string>).detail);
+    const onNew = () => setWantNewTask(true);
+    window.addEventListener(PAGE_EVENTS.openTask, onOpen);
+    window.addEventListener(PAGE_EVENTS.newTask, onNew);
+    return () => {
+      window.removeEventListener(PAGE_EVENTS.openTask, onOpen);
+      window.removeEventListener(PAGE_EVENTS.newTask, onNew);
+    };
   }, []);
+  useEffect(() => {
+    if (!wantNewTask || !columns.length) return;
+    setAddingToColumn(columns[0]);
+    setWantNewTask(false);
+    window.history.replaceState(null, "", "/board");
+  }, [wantNewTask, columns]);
 
   // Auto-scroll loop
   useEffect(() => {

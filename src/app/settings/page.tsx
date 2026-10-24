@@ -23,6 +23,7 @@ import { DEFAULT_SETTINGS, type EmailSettings } from "@/lib/email/types";
 import type { DiscordEvent } from "@/lib/discord";
 import { FEATURES, TOUR_SEEN_KEY } from "@/features/tour/ProductTour";
 import { Button, Panel, inputClass } from "@/features/ai/ui";
+import { ExportData } from "@/features/settings/ExportData";
 
 const TABS = [
   { key: "profile", label: "Profile", icon: UserCircle },
@@ -185,9 +186,14 @@ function WorkspaceSection() {
 
   if (!activeFamily) {
     return (
-      <Section title="Personal workspace" description="You're working on your own. Create or join a studio to collaborate.">
-        <Link href="/teams" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Go to Teams <ArrowRight size={13} /></Link>
-      </Section>
+      <div className="space-y-6">
+        <Section title="Personal workspace" description="You're working on your own. Create or join a studio to collaborate.">
+          <Link href="/teams" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Go to Teams <ArrowRight size={13} /></Link>
+        </Section>
+        <Section title="Export your data" description="Download a copy of your personal workspace, any time.">
+          <ExportData scopeId={user?.uid || ""} name="Personal workspace" canExport={!!user} />
+        </Section>
+      </div>
     );
   }
 
@@ -230,6 +236,9 @@ function WorkspaceSection() {
           </div>
           <Link href="/teams" className="inline-flex items-center gap-1.5 text-sm text-zinc-300 hover:text-white">Manage studios in Teams <ArrowRight size={13} /></Link>
         </div>
+      </Section>
+      <Section title="Export studio data" description="Download a copy of everything in this studio, any time.">
+        <ExportData scopeId={activeFamily.id} name={activeFamily.name} canExport={activeFamily.ownerId === user?.uid} />
       </Section>
     </div>
   );

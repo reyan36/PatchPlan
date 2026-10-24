@@ -22,7 +22,8 @@ export type EventType =
   | "ssrf_blocked" // link preview asked for a private/internal address
   | "ai_quota" // a user hit the daily AI limit
   | "studio_deleted"
-  | "ownership_transferred";
+  | "ownership_transferred"
+  | "data_export";
 
 export const EVENT_LABEL: Record<EventType, string> = {
   auth_invalid: "Invalid sign-in token",
@@ -35,6 +36,7 @@ export const EVENT_LABEL: Record<EventType, string> = {
   ai_quota: "Daily AI limit reached",
   studio_deleted: "Studio deleted",
   ownership_transferred: "Ownership transferred",
+  data_export: "Data exported",
 };
 
 /** How many warn events in 10 minutes count as an attack. */
@@ -85,6 +87,7 @@ const SEVERITY: Record<EventType, Severity> = {
   ai_quota: "warn",
   studio_deleted: "info",
   ownership_transferred: "info",
+  data_export: "info",
 };
 
 // Flood guard: during an attack, don't turn every bad request into a Firestore write.
