@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getCountFromServer, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from "firebase/firestore";
 import { EnvelopeSimple, Users, PaperPlaneTilt, Gear, ChartLine, Plus, CalendarCheck, Trash, Wrench, Megaphone, FileText, Sparkle } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
@@ -334,8 +334,13 @@ async function loadSubscriberCounts(scopeId: string): Promise<SubscriberCounts> 
     count(["status", "==", "unsubscribed"]),
     ...EMAIL_LISTS.map((l) => count(["status", "==", "active"], ["lists", "array-contains", l.key])),
   ]);
-  // Needs the composite index in firestore.indexes.json (subscribers: scopeId + createdAt); "—" until it exists.
-  const newThisWeek = await count(["createdAt", ">=", Timestamp.fromMillis(Date.now() - 7 * 86400000)]).catch(() => null);
+  // Uses the composite index in firestore.indexes.json (scopeId + createdAt descending; the orderBy
+  // must match that direction). Shows "—" if the index is missing.
+  const newThisWeek = await getCountFromServer(
+    query(col, where("scopeId", "==", scopeId), where("createdAt", ">=", Timestamp.fromMillis(Date.now() - 7 * 86400000)), orderBy("createdAt", "desc"))
+  )
+    .then((r) => r.data().count)
+    .catch(() => null);
   const c = { all, unsubscribed, newThisWeek } as SubscriberCounts;
   EMAIL_LISTS.forEach((l, i) => (c[l.key] = lists[i]));
   return c;
