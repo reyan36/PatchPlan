@@ -165,16 +165,12 @@ export function HeroGrid() {
     };
   }, []);
 
+  // The fade is sized to the grid itself (closest-side), so it reaches fully transparent before any
+  // edge of the canvas: no visible border on wide screens, and the grid melts into the page.
+  const fade = "radial-gradient(closest-side ellipse at 50% 46%, #000 25%, rgba(0,0,0,0.55) 62%, transparent 100%)";
   return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 top-0 h-[640px] flex justify-center overflow-hidden"
-      style={{
-        maskImage: "radial-gradient(ellipse 60% 55% at 50% 45%, black 10%, transparent 75%)",
-        WebkitMaskImage: "radial-gradient(ellipse 60% 55% at 50% 45%, black 10%, transparent 75%)",
-      }}
-    >
-      <canvas ref={ref} className="shrink-0" style={{ width: WIDTH, height: HEIGHT }} />
+    <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[640px] flex justify-center overflow-hidden">
+      <canvas ref={ref} className="shrink-0" style={{ width: WIDTH, height: HEIGHT, maskImage: fade, WebkitMaskImage: fade }} />
     </div>
   );
 }

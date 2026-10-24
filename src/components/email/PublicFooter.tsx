@@ -34,6 +34,9 @@ export function PublicFooter({ scopeId, source, studioName, links = [] }: Props)
                 {l.label}
               </a>
             ))}
+            <a href="/privacy" className="hover:text-[var(--pp-fg,#fafafa)] transition-colors">
+              Privacy
+            </a>
             <span>
               Powered by <span className="font-medium text-[var(--pp-fg,#fafafa)]">PatchPlan</span>
             </span>

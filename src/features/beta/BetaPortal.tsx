@@ -183,6 +183,12 @@ function ApplyForm({ scopeId }: { scopeId: string }) {
           <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 accent-[var(--pp-accent)]" />
           I&apos;ll keep beta builds and what I see in them private unless the team says otherwise.
         </label>
+        <p className="text-xs text-[var(--pp-muted)] -mt-1">
+          The team will see your name, email and the reports you send.{" "}
+          <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-[var(--pp-fg)]">
+            Privacy Policy
+          </a>
+        </p>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="submit" disabled={busy} className={`${portalPrimary} h-11 w-full sm:w-auto`}>
           {busy && <CircleNotch size={16} className="animate-spin" />} Send request

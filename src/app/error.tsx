@@ -2,22 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowClockwise, ArrowsClockwise, Check, Copy, WarningCircle } from "@phosphor-icons/react";
+import { ArrowClockwise, ArrowsClockwise, Check, CircleNotch, Copy, WarningCircle } from "@phosphor-icons/react";
+import { isStaleCodeError, markUpdateReady, reloadForUpdate } from "@/lib/version";
 
 /**
  * Shown when a page crashes. The rest of the app (navbar, footer) keeps working.
- * After a deploy, an open tab can ask for code files that no longer exist; that case gets a
- * "PatchPlan was updated" message, since a reload is the fix.
+ * After a deploy, an open tab can ask for code files that no longer exist. That case reloads once by
+ * itself (lib/version.ts); if it can't (unsaved work, or it just tried), it asks for a reload.
  */
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const [copied, setCopied] = useState(false);
-  const updated = /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module|Importing a module script failed/i.test(`${error.name} ${error.message}`);
+  const [reloading, setReloading] = useState(false);
+  const updated = isStaleCodeError(error);
   // Server errors carry a digest that matches the server log; browser errors don't.
   const ref = error.digest;
 
   useEffect(() => {
     console.error(error);
-  }, [error]);
+    if (!updated) return;
+    markUpdateReady();
+    if (reloadForUpdate()) setReloading(true);
+  }, [error, updated]);
 
   const copy = () => {
     const details = `PatchPlan error${ref ? ` ${ref}` : ""}\n${window.location.href}\n${new Date().toISOString()}\n${error.message}`;
@@ -26,6 +31,14 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
       setTimeout(() => setCopied(false), 1500);
     });
   };
+
+  if (reloading) {
+    return (
+      <div className="min-h-[60vh] w-full flex items-center justify-center gap-2 text-sm text-zinc-400">
+        <CircleNotch size={16} className="animate-spin" /> Updating PatchPlan…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[60vh] w-full flex items-center justify-center px-4 py-16">

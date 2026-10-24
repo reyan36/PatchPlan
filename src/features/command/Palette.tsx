@@ -30,6 +30,8 @@ import {
   SquaresFour,
   User,
   Users,
+  ShieldCheck,
+  Scroll,
   type Icon,
 } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
@@ -44,7 +46,7 @@ type Item = { id: string; group: string; label: string; sub?: string; icon: Icon
 
 const PAGE_ICONS: Record<string, Icon> = {
   home: SquaresFour, board: Kanban, inbox: Bell, ideas: Lightbulb, roadmap: Compass, news: Newspaper, beta: Flask, ai: Sparkle,
-  email: EnvelopeSimple, network: ShareNetwork, teams: Users, settings: Gear, status: Pulse, changelog: ClockCounterClockwise,
+  email: EnvelopeSimple, network: ShareNetwork, teams: Users, settings: Gear, status: Pulse, changelog: ClockCounterClockwise, privacy: ShieldCheck, terms: Scroll,
 };
 const GROUP_ORDER = ["Jump to", "Actions", "Tasks", "Docs", "Workspaces"];
 const studioNames = new Map<string, string>();

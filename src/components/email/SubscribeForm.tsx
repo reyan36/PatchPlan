@@ -115,6 +115,12 @@ export function SubscribeForm({ scopeId, source, studioName, variant = "card", s
           ))}
         </div>
       )}
+      <p className="text-xs mt-3" style={{ color: muted }}>
+        You&apos;ll get emails from {studioName || "this studio"} and can unsubscribe any time.{" "}
+        <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2">
+          Privacy Policy
+        </a>
+      </p>
       {error && <p className="text-sm mt-3 text-red-400">{error}</p>}
     </form>
   );

@@ -9,17 +9,14 @@ import {
   YoutubeLogo,
   GithubLogo,
   DiamondsFour,
-  CaretRight,
-  X,
-  ShieldCheck,
-  GameController,
-  Globe,
+  Plus,
 } from "@phosphor-icons/react";
 import { CookieBanner } from "./CookieBanner";
 import { Login } from "@/components/auth/LazyLogin";
 import { AISection } from "./AISection";
 import { HeroGrid } from "./HeroGrid";
 import { FeatureBento } from "./FeatureBento";
+import { QuestLine } from "./QuestLine";
 
 import { Logo } from "@/components/ui/Logo";
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -29,7 +26,6 @@ const HERO_LINES = [["The", "project", "manager"], ["built", "for", "game", "dev
 export function LandingPage() {
   const [authMode, setAuthMode] = useState<"signin" | "signup" | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [policyModal, setPolicyModal] = useState<"terms" | "privacy" | null>(null);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -193,49 +189,8 @@ export function LandingPage() {
         </div>
       </main>
 
-      {/* ─── 3-Pillar Strip (Image 1 Style) ─── */}
-      <section className="py-16 sm:py-20 px-6 max-w-4xl mx-auto">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-12 sm:gap-8 text-center">
-          {/* Pillar 1 */}
-          <div data-reveal-item className="flex flex-col items-center">
-            <div className="mb-3.5 text-neutral-400">
-              <GameController size={22} weight="regular" />
-            </div>
-            <h3 className="text-[15px] font-semibold text-neutral-200 tracking-tight mb-1.5">
-              Game-native
-            </h3>
-            <p className="text-[13px] text-neutral-500 leading-relaxed max-w-[230px]">
-              Pipelines for Art, Code, Audio, Design, and Bugs — built around milestones.
-            </p>
-          </div>
-
-          {/* Pillar 2 — Discord Integration */}
-          <div data-reveal-item className="flex flex-col items-center">
-            <div className="mb-3.5 text-neutral-400">
-              <DiscordLogo size={22} weight="regular" />
-            </div>
-            <h3 className="text-[15px] font-semibold text-neutral-200 tracking-tight mb-1.5">
-              Discord-integrated
-            </h3>
-            <p className="text-[13px] text-neutral-500 leading-relaxed max-w-[230px]">
-              Shipped tasks, new ideas, and devlogs post straight to your server automatically.
-            </p>
-          </div>
-
-          {/* Pillar 3 */}
-          <div data-reveal-item className="flex flex-col items-center">
-            <div className="mb-3.5 text-neutral-400">
-              <Globe size={22} weight="regular" />
-            </div>
-            <h3 className="text-[15px] font-semibold text-neutral-200 tracking-tight mb-1.5">
-              Community-ready
-            </h3>
-            <p className="text-[13px] text-neutral-500 leading-relaxed max-w-[230px]">
-              Publish live roadmaps and press pages for your players in a single click.
-            </p>
-          </div>
-        </div>
-      </section>
+      {/* ─── The loop ─── */}
+      <QuestLine />
 
       {/* ─── Feature Bento ─── */}
       <FeatureBento />
@@ -244,51 +199,84 @@ export function LandingPage() {
       <AISection />
 
       {/* ─── FAQ Section ─── */}
-      <section id="faq" className="pt-12 pb-24 px-4 max-w-2xl mx-auto w-full">
-        <h2 data-reveal className="text-4xl sm:text-5xl font-bold tracking-tight text-white text-center mb-16">
-          FAQ
-        </h2>
+      <section id="faq" className="py-16 sm:py-24 px-4 max-w-5xl mx-auto w-full grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-10 lg:gap-16">
+        <div data-reveal className="lg:sticky lg:top-28 self-start">
+          <p className="font-mono text-[11px] tracking-[0.3em] text-neutral-500 mb-4">FAQ</p>
+          <h2 className="text-[clamp(2rem,4.5vw,3rem)] font-bold tracking-[-0.03em] text-white leading-[1.05]">
+            Questions, <span className="text-neutral-500">answered.</span>
+          </h2>
+          <p className="mt-4 text-[15px] text-neutral-400 leading-relaxed max-w-sm">
+            Everything else is in the{" "}
+            <Link href="/changelog" className="text-neutral-200 underline underline-offset-4 decoration-white/20 hover:decoration-white">
+              changelog
+            </Link>
+            . Data questions? Read our{" "}
+            <Link href="/privacy" className="text-neutral-200 underline underline-offset-4 decoration-white/20 hover:decoration-white">
+              privacy policy
+            </Link>
+            .
+          </p>
+        </div>
 
-        <div data-reveal className="divide-y divide-white/[0.08] border-y border-white/[0.08]">
+        <div data-reveal className="space-y-2">
           {faqs.map((faq, idx) => {
             const isOpen = openFaq === idx;
             return (
               <div
                 key={idx}
-                className={`transition-all duration-150 ${
-                  isOpen
-                    ? "border border-white/20 rounded-md my-1.5 bg-white/[0.02]"
-                    : "hover:bg-white/[0.01]"
-                }`}
+                className={`rounded-2xl border transition-colors duration-200 ${isOpen ? "border-white/[0.14] bg-white/[0.03]" : "border-white/[0.06] hover:border-white/[0.1]"}`}
               >
                 <button
                   onClick={() => toggleFaq(idx)}
-                  className="w-full py-4 px-3 sm:px-4 flex items-center justify-between text-left group"
+                  className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left group"
                   aria-expanded={isOpen}
+                  aria-controls={`faq-${idx}`}
                 >
-                  <span
-                    className={`text-[16px] sm:text-[17px] font-semibold tracking-tight transition-colors pr-4 ${
-                      isOpen ? "text-white" : "text-neutral-200 group-hover:text-white"
-                    }`}
-                  >
+                  <span className={`text-[15px] sm:text-[16px] font-semibold tracking-tight transition-colors ${isOpen ? "text-white" : "text-neutral-200 group-hover:text-white"}`}>
                     {faq.q}
                   </span>
-                  <CaretRight
-                    size={16}
-                    weight="bold"
-                    className={`text-neutral-500 transition-transform duration-200 shrink-0 ${
-                      isOpen ? "rotate-90 text-white" : "group-hover:text-neutral-300"
-                    }`}
-                  />
+                  <span className={`shrink-0 w-7 h-7 rounded-full grid place-items-center border transition-all duration-300 ${isOpen ? "rotate-45 border-[#c8ff00]/40 text-[#c8ff00]" : "border-white/10 text-neutral-500 group-hover:text-neutral-300"}`}>
+                    <Plus size={13} weight="bold" />
+                  </span>
                 </button>
-                {isOpen && (
-                  <div className="px-3 sm:px-4 pb-4 text-sm text-neutral-400 leading-relaxed animate-in fade-in duration-150">
-                    {faq.a}
+                {/* Height animates via grid rows, so the answer slides open smoothly. */}
+                <div id={`faq-${idx}`} className="grid transition-[grid-template-rows] duration-300 ease-out" style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}>
+                  <div className="overflow-hidden">
+                    <p className="px-5 pb-5 text-[14px] text-neutral-400 leading-relaxed">{faq.a}</p>
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* ─── Press start ─── */}
+      <section className="px-4 pb-20 sm:pb-28">
+        <div data-reveal className="relative max-w-5xl mx-auto overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#0c0c0e] px-6 py-16 sm:py-24 text-center">
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)] [background-size:28px_28px] [mask-image:radial-gradient(ellipse_60%_70%_at_50%_100%,black,transparent)]" />
+          <div aria-hidden className="pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-24 w-[70%] h-56 rounded-full bg-[#c8ff00]/[0.12] blur-3xl" />
+          <p className="pp-press-start relative font-mono text-[11px] tracking-[0.4em] text-[#c8ff00] mb-5">PRESS START</p>
+          <h2 className="relative text-[clamp(2rem,5vw,3.5rem)] font-bold tracking-[-0.035em] text-white leading-[1.05]">
+            Ready when your game is.
+          </h2>
+          <p className="relative mt-4 text-[15px] sm:text-base text-neutral-400 max-w-md mx-auto leading-relaxed">
+            Free during early access. Your studio is set up in under a minute, and it works with any engine.
+          </p>
+          <div className="relative mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <button
+              onClick={() => setAuthMode("signup")}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-full bg-[#c8ff00] text-black font-semibold text-sm hover:bg-[#d6ff47] transition-colors active:scale-[0.97] shadow-[0_0_32px_rgba(200,255,0,0.25)]"
+            >
+              Start for free
+            </button>
+            <button
+              onClick={() => setAuthMode("signin")}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-full border border-white/[0.12] text-neutral-300 font-medium text-sm hover:bg-white/[0.04] hover:text-white transition-colors"
+            >
+              I have an account
+            </button>
+          </div>
         </div>
       </section>
 
@@ -310,12 +298,12 @@ export function LandingPage() {
             <a href="#faq" className="hover:text-white transition-colors">
               FAQ
             </a>
-            <button onClick={() => setPolicyModal("terms")} className="hover:text-white transition-colors">
+            <Link href="/terms" className="hover:text-white transition-colors">
               Terms
-            </button>
-            <button onClick={() => setPolicyModal("privacy")} className="hover:text-white transition-colors">
+            </Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">
               Privacy Policy
-            </button>
+            </Link>
             <button
               onClick={() => {
                 localStorage.removeItem("patchplan_cookie_consent");
@@ -384,74 +372,6 @@ export function LandingPage() {
           onMouseDown={(e) => e.target === e.currentTarget && setAuthMode(null)}
         >
           <Login initialMode={authMode} onClose={() => setAuthMode(null)} />
-        </div>
-      )}
-
-      {/* ─── Terms & Privacy Modal ─── */}
-      {policyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[#0e0e12] border border-white/15 rounded-2xl max-w-lg w-full p-6 text-neutral-300 relative shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2 text-white font-semibold text-base">
-                <ShieldCheck size={20} weight="duotone" className="text-indigo-400" />
-                <h3>{policyModal === "terms" ? "Terms of Service" : "Privacy & Data Policy"}</h3>
-              </div>
-              <button
-                onClick={() => setPolicyModal(null)}
-                className="text-neutral-400 hover:text-white transition-colors p-1"
-                aria-label="Close modal"
-              >
-                <X size={18} weight="bold" />
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs leading-relaxed max-h-[60vh] overflow-y-auto pr-2 text-neutral-400">
-              {policyModal === "terms" ? (
-                <>
-                  <p className="text-neutral-300 font-medium">1. Acceptance of Terms</p>
-                  <p>
-                    By creating an account or accessing PatchPlan, you agree to these Terms. PatchPlan is currently offered in open beta for game developers and studios.
-                  </p>
-
-                  <p className="text-neutral-300 font-medium">2. Studio Workspace & IP Ownership</p>
-                  <p>
-                    You retain 100% intellectual property ownership of your game design documents, whiteboards, tasks, and media. PatchPlan does not claim ownership over any user-created studio assets.
-                  </p>
-
-                  <p className="text-neutral-300 font-medium">3. Acceptable Use</p>
-                  <p>
-                    You agree not to abuse public roadmap links, spam Discord webhook dispatches, or attempt unauthorized access to other studios&apos; private family workspaces.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-neutral-300 font-medium">1. Data Storage & Security</p>
-                  <p>
-                    PatchPlan utilizes secure Firebase Authentication and encrypted Google Cloud Firestore databases to protect your studio data.
-                  </p>
-
-                  <p className="text-neutral-300 font-medium">2. Zero Third-Party Advertising</p>
-                  <p>
-                    We do not sell personal data, display third-party advertisements, or deploy cross-site tracking pixels. Your session cookies are used solely to keep you logged in.
-                  </p>
-
-                  <p className="text-neutral-300 font-medium">3. Data Deletion</p>
-                  <p>
-                    You may export or delete your studio workspace and roadmap at any time from your settings panel.
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-white/10">
-              <button
-                onClick={() => setPolicyModal(null)}
-                className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium text-xs transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>

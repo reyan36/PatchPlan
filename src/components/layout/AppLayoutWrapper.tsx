@@ -6,6 +6,7 @@ import Navbar from "@/components/layout/Navbar";
 import { useAuth } from "@/lib/AuthContext";
 import { AppSplash } from "@/components/ui/AppSplash";
 import { MaintenanceBanner } from "@/components/layout/MaintenanceBanner";
+import { UpdateBanner } from "@/components/layout/UpdateBanner";
 import { CommandMenu } from "@/features/command/CommandMenu";
 
 export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,7 @@ export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
   // On "/", only show the app chrome once we know (or strongly expect) the visitor is signed in.
   // Otherwise the server HTML and first paint would show the dashboard shell before the landing page.
   const expectSignedIn = !!user || (loading && signedInHint === true);
-  const isFullBleed = pathname?.startsWith("/p/") || pathname === "/landing" || pathname === "/changelog" || pathname === "/status" || (pathname === "/" && !expectSignedIn);
+  const isFullBleed = pathname?.startsWith("/p/") || pathname === "/landing" || pathname === "/changelog" || pathname === "/status" || pathname === "/privacy" || pathname === "/terms" || (pathname === "/" && !expectSignedIn);
 
   if (signingOut) return <AppSplash />;
 
@@ -40,6 +41,7 @@ export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <UpdateBanner />
       <MaintenanceBanner />
       <Navbar />
       {user && <CommandMenu />}
@@ -57,6 +59,12 @@ export function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
             </Link>
             <Link href="/status" className="hover:text-foreground transition-colors">
               Status
+            </Link>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms
             </Link>
             <div suppressHydrationWarning>
               &copy; {currentYear} PatchPlan. All rights reserved.

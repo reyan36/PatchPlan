@@ -118,6 +118,17 @@ li[data-type="taskItem"][data-checked="true"] > div {
 .pp-reveal-armed [data-reveal].pp-in,
 .pp-reveal-armed [data-reveal-item].pp-in { opacity: 1; translate: 0 0; scale: 1; }
 
+/* Landing: level-select timer, quest line and "press start" */
+@keyframes pp-level-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.pp-level-bar { transform-origin: left; animation-name: pp-level-bar; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes pp-travel { from { left: 0%; opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } to { left: 100%; opacity: 0; } }
+.pp-quest-spark { animation: pp-travel 5s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+.pp-quest-fill { transform-origin: left; transition: transform 1.8s cubic-bezier(0.65, 0, 0.35, 1) 0.2s; }
+.pp-quest-node { transition: background-color 0.5s ease, border-color 0.5s ease, color 0.5s ease, box-shadow 0.5s ease; transition-delay: calc(300ms + var(--i, 0) * 320ms); }
+.pp-reveal-armed .pp-quest:not(.pp-in) .pp-quest-fill { transform: scaleX(0); }
+.pp-reveal-armed .pp-quest:not(.pp-in) .pp-quest-node { background-color: #141417; border-color: rgba(255,255,255,0.08); color: #52525b; box-shadow: none; }
+.pp-press-start { animation: pp-blink 1.2s steps(1) infinite; }
+
 /* Guide mascot */
 @keyframes pp-mascot-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes pp-mascot-shadow { 0%, 100% { transform: scaleX(1); opacity: 0.35; } 50% { transform: scaleX(0.82); opacity: 0.22; } }
@@ -136,5 +147,6 @@ li[data-type="taskItem"][data-checked="true"] > div {
 @media (prefers-reduced-motion: reduce) {
   .pp-mascot *, .group:hover .pp-mascot * { animation: none !important; }
   .pp-pop, .pp-fade, .pp-rise, .pp-grow, .pp-float-a, .pp-float-b, .pp-float-c, .pp-shimmer, .pp-caret,
-  .pp-card-in, .pp-stagger-in, .pp-swap-in, .pp-nav-in, .pp-word-in, .pp-fade-up { animation: none !important; }
+  .pp-card-in, .pp-stagger-in, .pp-swap-in, .pp-nav-in, .pp-word-in, .pp-fade-up, .pp-quest-spark, .pp-press-start { animation: none !important; }
+  .pp-quest-fill, .pp-quest-node { transition: none !important; }
 }

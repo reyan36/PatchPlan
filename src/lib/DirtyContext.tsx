@@ -1,8 +1,9 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect, useRef } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { useRouter } from "next/navigation";
+import { isUpdateReady, setPageDirty } from "@/lib/version";
 
 type DirtyContextType = {
   isDirty: boolean;
@@ -21,30 +22,46 @@ export function DirtyProvider({ children }: { children: ReactNode }) {
   const [pendingPath, setPendingPath] = useState<string | null>(null);
   const router = useRouter();
 
+  // Read by the unload guard; a ref so "Discard changes" takes effect before a full-page navigation.
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    dirtyRef.current = isDirty;
+    // The update checker never reloads automatically while there are unsaved changes.
+    setPageDirty(isDirty);
+  }, [isDirty]);
+
   // Browser-level guard for hard refreshes and tab closing
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirty) {
+      if (dirtyRef.current) {
         e.preventDefault();
         e.returnValue = ''; // Required for Chrome to show prompt
       }
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
+  }, []);
+
+  // After a new deploy, the next page change loads fresh so the newer version is picked up quietly.
+  const go = (path: string) => {
+    if (isUpdateReady()) window.location.assign(path);
+    else router.push(path);
+  };
 
   const handleNavigation = (path: string) => {
     if (isDirty) {
       setPendingPath(path);
     } else {
-      router.push(path);
+      go(path);
     }
   };
 
   const confirmNavigation = () => {
     setIsDirty(false);
+    dirtyRef.current = false;
+    setPageDirty(false);
     if (pendingPath) {
-      router.push(pendingPath);
+      go(pendingPath);
       setPendingPath(null);
     }
   };

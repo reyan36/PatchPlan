@@ -301,6 +301,17 @@ export function Login({
             {isLogin ? "Create an account" : "Sign in"}
           </button>
         </p>
+        <p style={stagger(8)} className="pp-stagger-in mt-3 text-center text-[11px] leading-relaxed text-neutral-600">
+          By continuing, you agree to the{" "}
+          <a href="/terms" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-neutral-300">
+            Terms
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-neutral-300">
+            Privacy Policy
+          </a>
+          .
+        </p>
       </div>
     </div>
   );

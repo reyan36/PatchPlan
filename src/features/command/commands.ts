@@ -18,6 +18,8 @@ export const PAGES: PageCommand[] = [
   { id: "settings", label: "Settings", href: "/settings", key: "s", keywords: "account profile preferences export" },
   { id: "status", label: "System status", href: "/status", keywords: "uptime outage maintenance" },
   { id: "changelog", label: "Changelog", href: "/changelog", keywords: "updates releases what's new" },
+  { id: "privacy", label: "Privacy Policy", href: "/privacy", keywords: "data gdpr cookies legal" },
+  { id: "terms", label: "Terms of Service", href: "/terms", keywords: "legal rules agreement" },
 ];
 
 export const isMac = () => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

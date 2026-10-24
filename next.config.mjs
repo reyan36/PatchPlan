@@ -1,5 +1,21 @@
+import { execSync } from "node:child_process";
+
+// One id per build: the git commit (on Vercel, or locally). It must be the same in every build
+// worker, so no timestamps. Open tabs compare it to tell when a newer version is deployed
+// (src/lib/version.ts).
+function commitId() {
+  if (process.env.VERCEL_GIT_COMMIT_SHA) return process.env.VERCEL_GIT_COMMIT_SHA;
+  try {
+    return execSync("git rev-parse HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "local";
+  }
+}
+const BUILD_ID = commitId();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   // Lets a production build run beside `next dev` without both writing to .next.
   distDir: process.env.NEXT_DIST_DIR || ".next",
   reactStrictMode: true,
