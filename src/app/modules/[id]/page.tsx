@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { addDoc, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where, writeBatch } from "firebase/firestore";
-import { ArrowLeft, Trash } from "@phosphor-icons/react";
+import { ArrowLeft, PushPin, Trash } from "@phosphor-icons/react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { db } from "@/lib/firebase";
@@ -14,7 +14,7 @@ import type { ModuleSchema } from "@/lib/ai/types";
 import { MODULE_ICONS, ModuleRenderer, emptyRow, type ModuleRow } from "@/features/ai/ModuleRenderer";
 import { PageLoader } from "@/components/ui/PageLoader";
 
-type ModuleDoc = { schema: ModuleSchema; userId: string; familyId: string | null; prompt?: string };
+type ModuleDoc = { schema: ModuleSchema; userId: string; familyId: string | null; prompt?: string; pinned?: boolean };
 
 export default function ModulePage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth();
@@ -106,9 +106,19 @@ export default function ModulePage({ params }: { params: { id: string } }) {
             <p className="text-sm text-zinc-500">{schema.description}</p>
           </div>
         </div>
-        <button onClick={() => setConfirmDelete(true)} className="self-start sm:self-auto inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-red-300 px-2 py-1.5 rounded-md hover:bg-red-500/10">
-          <Trash size={13} /> Delete module
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            onClick={() => updateDoc(doc(db, "modules", params.id), { pinned: !mod.pinned })}
+            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border transition-colors ${
+              mod.pinned ? "border-[#c8ff00]/30 bg-[#c8ff00]/10 text-[#c8ff00]" : "border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.04]"
+            }`}
+          >
+            <PushPin size={13} weight={mod.pinned ? "fill" : "regular"} /> {mod.pinned ? "Pinned to dashboard" : "Pin to dashboard"}
+          </button>
+          <button onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-300 px-2 py-1.5 rounded-md hover:bg-red-500/10">
+            <Trash size={13} /> Delete module
+          </button>
+        </div>
       </header>
 
       <ModuleRenderer schema={schema} rows={rows} onAdd={onAdd} onUpdate={onUpdate} onDelete={onDelete} />

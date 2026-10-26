@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
-import { addDoc, collection, doc, onSnapshot, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
-import { Hammer, ArrowRight } from "@phosphor-icons/react";
+import { addDoc, collection, doc, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
+import { Hammer, ArrowRight, PushPin } from "@phosphor-icons/react";
 import { db } from "@/lib/firebase";
+import { personalOnly, scopeModules, useLiveQuery } from "@/lib/live";
 import { aiFetch, scopeFields } from "@/lib/ai/client";
 import type { ModuleSchema } from "@/lib/ai/types";
 import { MODULE_ICONS, ModuleRenderer, emptyRow, type ModuleRow } from "./ModuleRenderer";
@@ -14,7 +15,7 @@ import { Button, ErrorNote, Panel, inputClass } from "./ui";
 
 const EXAMPLES = ["Localization tracker for 6 languages", "Playtest session log with build, tester and issues found", "Voice actor casting board", "Steam festival checklist"];
 
-type SavedModule = { id: string; schema: ModuleSchema };
+type SavedModule = { schema: ModuleSchema; pinned?: boolean; familyId?: string | null };
 
 export function BuildAnything({ user, familyId, enabled }: { user: User; familyId: string | null; enabled: boolean }) {
   const router = useRouter();
@@ -24,16 +25,9 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
   const [rows, setRows] = useState<ModuleRow[]>([]);
   const [busy, setBusy] = useState<"design" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [modules, setModules] = useState<SavedModule[]>([]);
-
-  useEffect(() => {
-    const q = familyId ? query(collection(db, "modules"), where("familyId", "==", familyId)) : query(collection(db, "modules"), where("userId", "==", user.uid));
-    return onSnapshot(
-      q,
-      (s) => setModules(s.docs.map((d) => ({ id: d.id, ...d.data() }) as SavedModule & { familyId?: string }).filter((m) => familyId || !(m as any).familyId)),
-      () => setModules([])
-    );
-  }, [user.uid, familyId]);
+  // Same listener as the dashboard's pinned tools.
+  const source = scopeModules(user.uid, familyId);
+  const modules = personalOnly(useLiveQuery<SavedModule>(source.key, source.build).data, familyId);
 
   const design = async (ask: string, previous?: ModuleSchema) => {
     setError(null);
@@ -162,6 +156,16 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
                     <div className="text-sm text-white truncate">{m.schema?.name}</div>
                     <div className="text-xs text-zinc-400 line-clamp-2">{m.schema?.description}</div>
                   </div>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      updateDoc(doc(db, "modules", m.id), { pinned: !m.pinned });
+                    }}
+                    title={m.pinned ? `Unpin ${m.schema?.name} from the dashboard` : "Pin to the dashboard"}
+                    className={`p-1 -m-1 rounded ${m.pinned ? "text-[#c8ff00]" : "text-zinc-500 opacity-0 group-hover:opacity-100 hover:text-zinc-200"}`}
+                  >
+                    <PushPin size={14} weight={m.pinned ? "fill" : "regular"} />
+                  </button>
                   <ArrowRight size={14} className="text-zinc-500 group-hover:text-zinc-300 mt-0.5" />
                 </Link>
               );

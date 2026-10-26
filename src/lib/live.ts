@@ -126,6 +126,19 @@ export const scopeIdeas = (uid: string, familyId: string | null | undefined) => 
   build: (fs: Fs) => fs.query(fs.collection(fs.db, "ideas"), familyId ? fs.where("familyId", "==", familyId) : fs.where("userId", "==", uid)),
 });
 
+/** AI-built modules of a workspace (Build tab, dashboard pins). Filter personal mode with personalOnly(). */
+export const scopeModules = (uid: string, familyId: string | null | undefined) => ({
+  key: familyId ? `modules:family:${familyId}` : `modules:user:${uid}`,
+  build: (fs: Fs) => fs.query(fs.collection(fs.db, "modules"), familyId ? fs.where("familyId", "==", familyId) : fs.where("userId", "==", uid)),
+});
+
+/** Rows of one module, scoped like the module so rules can check them. */
+export const moduleRows = (moduleId: string, uid: string, familyId: string | null | undefined) => ({
+  key: `module_rows:${moduleId}:${familyId || uid}`,
+  build: (fs: Fs) =>
+    fs.query(fs.collection(fs.db, "module_rows"), fs.where("moduleId", "==", moduleId), familyId ? fs.where("familyId", "==", familyId) : fs.where("userId", "==", uid)),
+});
+
 /** Personal workspaces exclude docs that belong to a studio (they also carry your userId). */
 export function personalOnly<T extends { familyId?: string | null }>(list: T[] | undefined, familyId: string | null | undefined): T[] {
   if (!list) return [];

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Table, Globe, Translate, Bug, Users, CalendarBlank, ChartBar, ListBullets, Flag, MusicNotes, Palette, Sword, Trophy, Megaphone, Cube,
-  Plus, Trash,
+  Plus, Trash, CaretDown,
 } from "@phosphor-icons/react";
 import type { ModuleField, ModuleSchema } from "@/lib/ai/types";
 
@@ -28,11 +28,78 @@ export function emptyRow(schema: ModuleSchema): Record<string, unknown> {
   );
 }
 
+/** Solid colors matching SELECT_COLORS, for charts. */
+export const SELECT_BARS = ["bg-sky-400", "bg-amber-400", "bg-emerald-400", "bg-purple-400", "bg-red-400", "bg-zinc-500"];
+
 const SELECT_COLORS = ["bg-sky-500/15 text-sky-300", "bg-amber-500/15 text-amber-300", "bg-emerald-500/15 text-emerald-300", "bg-purple-500/15 text-purple-300", "bg-red-500/15 text-red-300", "bg-zinc-500/15 text-zinc-300"];
 
-function selectColor(field: ModuleField, v: unknown) {
+export function selectColor(field: ModuleField, v: unknown) {
   const i = field.options?.indexOf(String(v)) ?? -1;
   return SELECT_COLORS[(i < 0 ? 5 : i) % SELECT_COLORS.length];
+}
+
+/** Two lines of text-sm plus the cell's vertical padding; notes longer than three lines get a toggle. */
+const COLLAPSED_HEIGHT = 48;
+const TOGGLE_FROM = 68;
+
+/**
+ * Notes that grow with their text (no inner scrollbar or resize handle). Long notes get a
+ * Show less / Show more toggle; clicking into a collapsed note opens it again.
+ */
+function LongText({ value, onChange, className }: { value: string; onChange: (v: string) => void; className: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [collapsed, setCollapsed] = useState(false);
+  const [long, setLong] = useState(false);
+
+  const fit = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const full = el.scrollHeight;
+    setLong(full > TOGGLE_FROM + 4);
+    el.style.height = `${collapsed ? Math.min(full, COLLAPSED_HEIGHT) : full}px`;
+  }, [collapsed]);
+
+  useLayoutEffect(fit, [value, fit]);
+
+  // Re-wrap when the column width changes (window resize, table reflow).
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth !== width) {
+        width = el.clientWidth;
+        fit();
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit]);
+
+  const clipped = collapsed && long;
+  return (
+    <div>
+      <textarea
+        ref={ref}
+        value={value}
+        rows={1}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setCollapsed(false)}
+        className={`${className} block resize-none overflow-hidden leading-5 ${clipped ? "[mask-image:linear-gradient(to_bottom,black_55%,transparent)]" : ""}`}
+      />
+      {long && (
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="ml-1.5 mt-0.5 inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-200"
+        >
+          <CaretDown size={10} className={collapsed ? "" : "rotate-180"} />
+          {collapsed ? "Show more" : "Show less"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 /** Inline editor for one cell, chosen by field type. */
@@ -63,7 +130,7 @@ function Cell({ field, value, onChange }: { field: ModuleField; value: unknown; 
     case "date":
       return <input type="date" value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} className={`${base} [color-scheme:dark]`} />;
     case "longtext":
-      return <textarea value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} rows={1} className={`${base} resize-y min-h-[30px]`} />;
+      return <LongText value={String(value ?? "")} onChange={onChange} className={base} />;
     default:
       return <input value={String(value ?? "")} onChange={(e) => onChange(e.target.value)} placeholder={field.type === "url" ? "https://" : ""} className={base} />;
   }
@@ -81,7 +148,7 @@ function TableView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
       <table className="w-full text-left min-w-[560px]">
         <thead>
           <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-zinc-400">
-            {schema.fields.map((f) => <th key={f.key} className="px-3 py-2 font-medium">{f.label}</th>)}
+            {schema.fields.map((f) => <th key={f.key} className={`px-3 py-2 font-medium ${f.type === "longtext" ? "min-w-[240px]" : ""}`}>{f.label}</th>)}
             <th className="w-8" />
           </tr>
         </thead>
@@ -89,7 +156,7 @@ function TableView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
           {rows.map((r) => (
             <tr key={r.id} className="group border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02]">
               {schema.fields.map((f) => (
-                <td key={f.key} className="px-1.5 py-1 align-middle">
+                <td key={f.key} className={`px-1.5 py-1.5 align-top ${f.type === "checkbox" ? "pt-2.5" : ""}`}>
                   <Cell field={f} value={r.data[f.key]} onChange={(v) => onUpdate(r.id, f.key, v)} />
                 </td>
               ))}

@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 
 // Dashboard widgets use Firestore; landing visitors never download them.
 const IdeaBoard = dynamic(() => import("@/features/idea-management/IdeaBoard").then((m) => m.IdeaBoard), { loading: () => <Skeleton className="h-64 w-full" /> });
+const PinnedModules = dynamic(() => import("@/features/ai/PinnedModules").then((m) => m.PinnedModules));
 const TeamOverview = dynamic(() => import("@/features/team-management/TeamOverview").then((m) => m.TeamOverview), { loading: () => <Skeleton className="h-96 w-full" /> });
 
 // Signed-in users never download the landing page (and its animation libraries), and vice versa.
@@ -22,7 +23,7 @@ const LandingPage = dynamic(() => import("@/components/landing/LandingPage").the
 
 export default function Home() {
   const { user, loading, signedInHint } = useAuth();
-  const { loading: familyLoading } = useFamily();
+  const { activeFamily, loading: familyLoading } = useFamily();
   const router = useRouter();
   const [ask, setAsk] = useState("");
 
@@ -110,6 +111,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <PinnedModules uid={user.uid} familyId={activeFamily ? activeFamily.id : null} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-8">
