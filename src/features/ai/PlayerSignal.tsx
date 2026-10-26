@@ -134,7 +134,11 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
       });
       await batch.commit();
       setManual("");
-      setNote(`${found} Sorted into ${clusters.length} signal${clusters.length === 1 ? "" : "s"}.${skipped}`);
+      setNote(
+        clusters.length
+          ? `${found} Sorted into ${clusters.length} signal${clusters.length === 1 ? "" : "s"}.${skipped}`
+          : `${found} The AI couldn't group these into signals. Try Collect feedback again.${skipped}`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {

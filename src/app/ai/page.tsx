@@ -34,8 +34,12 @@ export default function AIPage() {
     const t = new URLSearchParams(window.location.search).get("tab");
     if (TABS.some((x) => x.key === t)) setTab(t as TabKey);
     setInitialQuery(new URLSearchParams(window.location.search).get("q") || "");
-    getAIStatus().then(setStatus);
   }, []);
+
+  // Ask once the sign-in is restored: access depends on the account.
+  useEffect(() => {
+    if (user) getAIStatus().then(setStatus);
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const select = (t: TabKey) => {
     setTab(t);

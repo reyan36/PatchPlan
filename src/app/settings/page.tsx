@@ -341,10 +341,12 @@ function EmailSection({ scopeId }: { scopeId: string }) {
 }
 
 function AISection() {
+  const { user } = useAuth();
   const [status, setStatus] = useState<AIStatus | null>(null);
+  // Ask once the sign-in is restored: access depends on the account.
   useEffect(() => {
-    getAIStatus().then(setStatus);
-  }, []);
+    if (user) getAIStatus().then(setStatus);
+  }, [user?.uid]); // eslint-disable-line react-hooks/exhaustive-deps
   const ready = aiReady(status);
   const rows = [
     { ok: ready, title: "AI assistant", body: "Search, Build, Player Signal, patch notes and email drafts." },
