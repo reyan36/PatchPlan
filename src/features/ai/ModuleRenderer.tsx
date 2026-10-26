@@ -80,7 +80,7 @@ function TableView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
     <div className="rounded-xl border border-white/10 overflow-x-auto">
       <table className="w-full text-left min-w-[560px]">
         <thead>
-          <tr className="border-b border-white/10 text-[11px] uppercase tracking-wide text-zinc-500">
+          <tr className="border-b border-white/10 text-xs uppercase tracking-wide text-zinc-400">
             {schema.fields.map((f) => <th key={f.key} className="px-3 py-2 font-medium">{f.label}</th>)}
             <th className="w-8" />
           </tr>
@@ -94,7 +94,7 @@ function TableView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
                 </td>
               ))}
               <td className="pr-2">
-                <button onClick={() => onDelete(r.id)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-300 p-1" title="Delete row">
+                <button onClick={() => onDelete(r.id)} className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-300 p-1" title="Delete row">
                   <Trash size={13} />
                 </button>
               </td>
@@ -102,7 +102,7 @@ function TableView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
           ))}
         </tbody>
       </table>
-      <button onClick={() => onAdd()} className="w-full flex items-center gap-1.5 px-3 py-2 text-xs text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.02] border-t border-white/[0.05]">
+      <button onClick={() => onAdd()} className="w-full flex items-center gap-1.5 px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.02] border-t border-white/[0.05]">
         <Plus size={12} weight="bold" /> New row
       </button>
     </div>
@@ -117,13 +117,13 @@ function RowCard({ schema, row, onUpdate, onDelete, skip }: { schema: ModuleSche
         <div className="flex-1 font-medium [&_input]:font-medium">
           {title && <Cell field={title} value={row.data[title.key]} onChange={(v) => onUpdate(row.id, title.key, v)} />}
         </div>
-        <button onClick={() => onDelete(row.id)} className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-300 p-1" title="Delete">
+        <button onClick={() => onDelete(row.id)} className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-300 p-1" title="Delete">
           <Trash size={12} />
         </button>
       </div>
       {rest.map((f) => (
         <div key={f.key} className="flex items-center gap-2">
-          <span className="text-[10px] text-zinc-600 w-20 shrink-0 truncate px-1.5">{f.label}</span>
+          <span className="text-[11px] text-zinc-500 w-20 shrink-0 truncate px-1.5">{f.label}</span>
           <div className="flex-1 min-w-0 text-xs"><Cell field={f} value={row.data[f.key]} onChange={(v) => onUpdate(row.id, f.key, v)} /></div>
         </div>
       ))}
@@ -146,7 +146,7 @@ function BoardView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
         >
           <div className="flex items-center justify-between px-1">
             <span className={`text-xs rounded-full px-2 py-0.5 ${selectColor(field, opt)}`}>{opt}</span>
-            <span className="text-[11px] text-zinc-600">{rows.filter((r) => r.data[field.key] === opt).length}</span>
+            <span className="text-xs text-zinc-500">{rows.filter((r) => r.data[field.key] === opt).length}</span>
           </div>
           {rows
             .filter((r) => r.data[field.key] === opt)
@@ -155,7 +155,7 @@ function BoardView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
                 <RowCard schema={schema} row={r} onUpdate={onUpdate} onDelete={onDelete} skip={field.key} />
               </div>
             ))}
-          <button onClick={() => onAdd({ [field.key]: opt })} className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-zinc-500 hover:text-zinc-200 rounded-md hover:bg-white/[0.03]">
+          <button onClick={() => onAdd({ [field.key]: opt })} className="w-full flex items-center gap-1.5 px-2 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 rounded-md hover:bg-white/[0.03]">
             <Plus size={12} weight="bold" /> Add
           </button>
         </div>
@@ -168,7 +168,7 @@ function CardsView({ schema, rows, onAdd, onUpdate, onDelete }: Props) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {rows.map((r) => <RowCard key={r.id} schema={schema} row={r} onUpdate={onUpdate} onDelete={onDelete} />)}
-      <button onClick={() => onAdd()} className="rounded-lg border border-dashed border-white/10 min-h-[120px] flex items-center justify-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-200 hover:border-white/25">
+      <button onClick={() => onAdd()} className="rounded-lg border border-dashed border-white/10 min-h-[120px] flex items-center justify-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 hover:border-white/25">
         <Plus size={12} weight="bold" /> New card
       </button>
     </div>

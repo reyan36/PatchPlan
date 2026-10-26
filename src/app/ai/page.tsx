@@ -54,9 +54,9 @@ export default function AIPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-2">
             <Sparkle size={24} weight="duotone" className="text-[#c8ff00]" /> PatchPlan AI
-            <span className="ml-1 self-center px-1.5 py-0.5 rounded bg-[#c8ff00] text-[#0a0a0a] text-[10px] font-bold tracking-[0.08em]">NEBIUS</span>
+            <span className="ml-1 self-center px-1.5 py-0.5 rounded bg-[#c8ff00] text-[#0a0a0a] text-[11px] font-bold tracking-[0.08em]">NEBIUS</span>
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">
+          <p className="text-sm text-zinc-400 mt-1">
             Powered by NVIDIA Nemotron on Nebius.
           </p>
         </div>
@@ -66,7 +66,7 @@ export default function AIPage() {
               key={t.key}
               onClick={() => select(t.key)}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                tab === t.key ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-200"
+                tab === t.key ? "bg-white/10 text-white" : "text-zinc-400 hover:text-zinc-200"
               }`}
             >
               <t.icon size={14} weight={tab === t.key ? "duotone" : "regular"} />

@@ -22,7 +22,7 @@ import { personalOnly, scopeTasks, useLiveQuery } from "@/lib/live";
 import { notifyPatchNotes } from "@/lib/discord";
 import { aiFetch, aiReady, scopeFields, type AIStatus } from "@/lib/ai/client";
 import type { FeedbackItem, PatchNotesDraft, ShippedTask, SignalCluster, TaskBrief, TaskTag } from "@/lib/ai/types";
-import { Button, CATEGORY_STYLE, ErrorNote, Panel, Pill, SEVERITY_DOT, SourceIcon, inputClass } from "./ui";
+import { Button, CATEGORY_STYLE, ErrorNote, Panel, Pill, SEVERITY_DOT, SOURCE_LABEL, SourceIcon, inputClass } from "./ui";
 
 type SignalStatus = "pending" | "approved" | "dismissed" | "shipped";
 
@@ -36,7 +36,7 @@ type Signal = SignalCluster & {
 
 type Task = { id: string; title: string; tags: string[]; column: string; description?: string; familyId?: string | null };
 
-type Sources = { gameName: string; subreddit: string; feedbackChannelId: string };
+type Sources = { gameName: string; steamApp: string; subreddit: string; feedbackChannelId: string };
 
 const TAGS: TaskTag[] = ["Art", "Code", "Audio", "Design", "Bug", "Marketing", "Other"];
 const DONE_COLUMN = "Done";
@@ -49,7 +49,7 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
   const taskSource = scopeTasks(user.uid, familyId);
   const liveTasks = useLiveQuery<Task>(taskSource.key, (fs) => taskSource.build(fs));
   const tasks = useMemo(() => personalOnly(liveTasks.data, familyId), [liveTasks.data, familyId]);
-  const [sources, setSources] = useState<Sources>({ gameName: "", subreddit: "", feedbackChannelId: "" });
+  const [sources, setSources] = useState<Sources>({ gameName: "", steamApp: "", subreddit: "", feedbackChannelId: "" });
   const [manual, setManual] = useState("");
   const [showSources, setShowSources] = useState(false);
 
@@ -76,9 +76,9 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
     getDoc(doc(db, "integrations", scopeId))
       .then((snap) => {
         const d = snap.data() || {};
-        const next = { gameName: d.gameName || "", subreddit: d.subreddit || "", feedbackChannelId: d.feedbackChannelId || "" };
+        const next = { gameName: d.gameName || "", steamApp: d.steamApp || "", subreddit: d.subreddit || "", feedbackChannelId: d.feedbackChannelId || "" };
         setSources(next);
-        if (!next.gameName && !next.feedbackChannelId) setShowSources(true);
+        if (!next.gameName && !next.steamApp && !next.feedbackChannelId) setShowSources(true);
       })
       .catch(() => setShowSources(true));
   }, [scopeId]);
@@ -102,15 +102,18 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
     setNote(null);
     try {
       setPhase("collecting");
-      const collected = await aiFetch<{ items: FeedbackItem[]; errors: string[] }>("signal/collect", {
+      const collected = await aiFetch<{ items: FeedbackItem[]; errors: string[]; dropped?: number }>("signal/collect", {
         discordChannelId: sources.feedbackChannelId || undefined,
         gameName: sources.gameName || undefined,
+        steamApp: sources.steamApp || undefined,
         subreddit: sources.subreddit || undefined,
         manual,
       });
       const fresh = collected.items.filter((i) => i.source === "manual" || !knownReportIds.has(i.id));
+      const found = sourceSummary(fresh, collected.dropped || 0, sources.subreddit);
+      const skipped = collected.errors.length ? ` Couldn't reach ${collected.errors.join(" · ")}.` : "";
       if (!fresh.length) {
-        setNote(collected.errors.length ? collected.errors.join(" · ") : "No new player feedback since the last run.");
+        setNote(`No new player feedback since the last run.${found ? ` ${found}` : ""}${skipped}`);
         return;
       }
 
@@ -131,9 +134,7 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
       });
       await batch.commit();
       setManual("");
-      setNote(
-        `Sorted ${fresh.length} reports into ${clusters.length} signals.` + (collected.errors.length ? ` Skipped: ${collected.errors.join(" · ")}` : "")
-      );
+      setNote(`${found} Sorted into ${clusters.length} signal${clusters.length === 1 ? "" : "s"}.${skipped}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -174,13 +175,16 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-white tracking-tight">Player Signal</h2>
-            <p className="text-sm text-zinc-500 mt-0.5">Collect feedback from Discord, Steam and Reddit, sort it, and turn it into board tasks.</p>
+            <p className="text-sm text-zinc-400 mt-0.5">Collect feedback from Discord, Steam and Reddit, sort it, and turn it into board tasks.</p>
             <div className="flex flex-wrap gap-1.5 mt-3">
-              <Pill className={status?.discordBot && sources.feedbackChannelId ? "border-indigo-500/25 text-indigo-300" : "border-white/10 text-zinc-500"}>
+              <Pill className={status?.discordBot && sources.feedbackChannelId ? "border-indigo-500/25 text-indigo-300" : "border-white/10 text-zinc-400"}>
                 <SourceIcon source="discord" size={11} /> {sources.feedbackChannelId ? "Discord channel" : "Discord not set"}
               </Pill>
-              <Pill className={status?.tavily && sources.gameName ? "border-sky-500/25 text-sky-300" : "border-white/10 text-zinc-500"}>
-                <SourceIcon source="steam" size={11} /> Steam + Reddit {sources.gameName ? `· ${sources.gameName}` : "not set"}
+              <Pill className={sources.steamApp || (status?.tavily && sources.gameName) ? "border-sky-500/25 text-sky-300" : "border-white/10 text-zinc-400"}>
+                <SourceIcon source="steam" size={11} /> {sources.steamApp ? "Steam reviews" : sources.gameName ? "Steam search" : "Steam not set"}
+              </Pill>
+              <Pill className={status?.tavily && sources.gameName ? "border-orange-500/25 text-orange-300" : "border-white/10 text-zinc-400"}>
+                <SourceIcon source="reddit" size={11} /> {sources.gameName ? (sources.subreddit ? `r/${subName(sources.subreddit)}` : "Reddit search") : "Reddit not set"}
               </Pill>
             </div>
           </div>
@@ -196,26 +200,30 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
         </div>
 
         {showSources && (
-          <div className="grid sm:grid-cols-3 gap-3 pt-3 border-t border-white/[0.06]">
+          <div className="grid sm:grid-cols-2 gap-3 pt-3 border-t border-white/[0.06]">
             <label className="space-y-1">
-              <span className="text-[11px] text-zinc-500">Game name (for Steam / web search)</span>
+              <span className="text-xs text-zinc-400">Game name (for Reddit and web search)</span>
               <input className={inputClass} value={sources.gameName} onChange={(e) => setSources({ ...sources, gameName: e.target.value })} placeholder="Your game" />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-zinc-500">Subreddit (optional)</span>
+              <span className="text-xs text-zinc-400">Steam store link (reads your reviews directly)</span>
+              <input className={inputClass} value={sources.steamApp} onChange={(e) => setSources({ ...sources, steamApp: e.target.value.trim() })} placeholder="store.steampowered.com/app/…" />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs text-zinc-400">Subreddit (optional)</span>
               <input className={inputClass} value={sources.subreddit} onChange={(e) => setSources({ ...sources, subreddit: e.target.value })} placeholder="r/yourgame" />
             </label>
             <label className="space-y-1">
-              <span className="text-[11px] text-zinc-500">Discord feedback channel ID</span>
+              <span className="text-xs text-zinc-400">Discord feedback channel ID</span>
               <input className={inputClass} value={sources.feedbackChannelId} onChange={(e) => setSources({ ...sources, feedbackChannelId: e.target.value.trim() })} placeholder="123456789012345678" />
             </label>
-            <label className="space-y-1 sm:col-span-3">
-              <span className="text-[11px] text-zinc-500">Or paste feedback, one report per line (&quot;Name: message&quot; credits the player)</span>
+            <label className="space-y-1 sm:col-span-2">
+              <span className="text-xs text-zinc-400">Or paste feedback, one report per line (&quot;Name: message&quot; credits the player)</span>
               <textarea className={`${inputClass} min-h-[72px] font-mono text-xs`} value={manual} onChange={(e) => setManual(e.target.value)} placeholder={"Player1: game softlocks if you exit the ladder mid-climb\nPlayer2: parry window feels way too tight on boss 2"} />
             </label>
-            <div className="sm:col-span-3 flex items-center justify-between gap-3">
-              <p className="text-[11px] text-zinc-600">
-                {!status?.tavily && "Steam and Reddit search isn't available yet. "}
+            <div className="sm:col-span-2 flex items-center justify-between gap-3">
+              <p className="text-xs text-zinc-500">
+                {!status?.tavily && "Reddit and web search aren't available yet. "}
                 {!status?.discordBot && "Discord import isn't connected yet. "}
               </p>
               <Button variant="ghost" onClick={saveSources}>Save sources</Button>
@@ -250,6 +258,19 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
   );
 }
 
+const subName = (s: string) => s.trim().replace(/^\/?r\//i, "");
+
+/** "Found 9 reports: 6 Steam, 2 Reddit, 1 Pasted." plus what was filtered out. */
+function sourceSummary(items: FeedbackItem[], dropped: number, subreddit: string) {
+  const counts = new Map<string, number>();
+  items.forEach((i) => counts.set(SOURCE_LABEL[i.source], (counts.get(SOURCE_LABEL[i.source]) || 0) + 1));
+  const parts = Array.from(counts, ([label, n]) => `${n} ${label}`);
+  let text = items.length ? `Found ${items.length} report${items.length === 1 ? "" : "s"}: ${parts.join(", ")}.` : "";
+  if (subreddit && !counts.has(SOURCE_LABEL.reddit)) text += ` Nothing new on r/${subName(subreddit)}.`;
+  if (dropped) text += ` Skipped ${dropped} result${dropped === 1 ? "" : "s"} about other games or products.`;
+  return text.trim();
+}
+
 function sevRank(s: Signal) {
   return { high: 0, medium: 1, low: 2 }[s.severity] ?? 1;
 }
@@ -258,14 +279,14 @@ function SectionTitle({ title, count, hint }: { title: string; count: number; hi
   return (
     <div className="flex items-baseline gap-2">
       <h3 className="text-sm font-semibold text-white">{title}</h3>
-      <span className="text-xs text-zinc-600">{count}</span>
-      {hint && <span className="text-xs text-zinc-600 hidden sm:inline">· {hint}</span>}
+      <span className="text-xs text-zinc-500">{count}</span>
+      {hint && <span className="text-xs text-zinc-500 hidden sm:inline">· {hint}</span>}
     </div>
   );
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-600">{text}</div>;
+  return <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-sm text-zinc-500">{text}</div>;
 }
 
 function SignalCard({
@@ -304,15 +325,14 @@ function SignalCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <Pill className={CATEGORY_STYLE[s.category]}>{s.category}</Pill>
-            <button onClick={() => setOpen((v) => !v)} className="text-[11px] text-zinc-500 hover:text-zinc-300 inline-flex items-center gap-1">
-              {s.reports.length} report{s.reports.length === 1 ? "" : "s"} · {s.reporters.slice(0, 3).join(", ")}
-              {s.reporters.length > 3 ? ` +${s.reporters.length - 3}` : ""}
+            <button onClick={() => setOpen((v) => !v)} className="text-xs text-zinc-400 hover:text-zinc-300 inline-flex items-center gap-1">
+              {s.reports.length} report{s.reports.length === 1 ? "" : "s"} · {Array.from(new Set(s.reports.map((r) => SOURCE_LABEL[r.source]))).join(", ")}
               <CaretDown size={10} className={open ? "rotate-180" : ""} />
             </button>
           </div>
           <p className="text-sm text-zinc-100">{s.summary}</p>
         </div>
-        <button onClick={() => onDismiss(s)} className="text-zinc-600 hover:text-zinc-300 p-1" title="Dismiss">
+        <button onClick={() => onDismiss(s)} className="text-zinc-500 hover:text-zinc-300 p-1" title="Dismiss">
           <X size={14} />
         </button>
       </div>
@@ -323,9 +343,9 @@ function SignalCard({
             <li key={r.id} className="flex gap-2 text-xs">
               <span className="mt-0.5 shrink-0"><SourceIcon source={r.source} /></span>
               <span className="text-zinc-400 min-w-0">
-                <span className="text-zinc-300 font-medium">{r.author}</span> {r.text}
+                <span className="text-zinc-200 font-medium">{r.author}</span> <span className="text-zinc-400">· {SOURCE_LABEL[r.source]}</span> {r.text}
                 {r.url && (
-                  <a href={r.url} target="_blank" rel="noreferrer" className="ml-1 text-zinc-500 hover:text-zinc-300 underline underline-offset-2">source</a>
+                  <a href={r.url} target="_blank" rel="noreferrer" className="ml-1 text-zinc-400 hover:text-zinc-300 underline underline-offset-2">source</a>
                 )}
               </span>
             </li>
@@ -344,12 +364,12 @@ function SignalCard({
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`px-2.5 py-1 rounded-md ${mode === m ? "bg-white/10 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={`px-2.5 py-1 rounded-md ${mode === m ? "bg-white/10 text-white" : "text-zinc-400 hover:text-zinc-300"}`}
               >
                 {m === "link" ? "Link to existing task" : "Create new task"}
               </button>
             ))}
-            {matched && <span className="ml-auto self-center text-[11px] text-emerald-400/80 hidden sm:inline">AI found a match</span>}
+            {matched && <span className="ml-auto self-center text-xs text-emerald-400/80 hidden sm:inline">AI found a match</span>}
           </div>
 
           {mode === "link" ? (
@@ -360,7 +380,7 @@ function SignalCard({
                   <option key={t.id} value={t.id}>{t.title} · {t.column}</option>
                 ))}
               </select>
-              {matched && s.matchReason && linkTo === matched.id && <p className="text-[11px] text-zinc-500">{s.matchReason}</p>}
+              {matched && s.matchReason && linkTo === matched.id && <p className="text-xs text-zinc-400">{s.matchReason}</p>}
             </div>
           ) : (
             <div className="grid sm:grid-cols-[1fr_120px] gap-2">
@@ -498,7 +518,7 @@ function ShipPanel({
       <SectionTitle title="Ready to ship" count={readyTasks.length} hint={`Linked tasks that reached ${DONE_COLUMN}.`} />
       <Panel className="p-4 space-y-4">
         {readyTasks.length === 0 ? (
-          <p className="text-sm text-zinc-600">
+          <p className="text-sm text-zinc-500">
             Nothing shipped yet. When a task linked to player signals moves to {DONE_COLUMN}, it shows up here.
           </p>
         ) : (
@@ -518,7 +538,7 @@ function ShipPanel({
                   />
                   <CheckCircle size={14} weight="fill" className="text-emerald-400 shrink-0" />
                   <span className="text-zinc-200 truncate">{task.title}</span>
-                  <span className="text-[11px] text-zinc-600 shrink-0">
+                  <span className="text-xs text-zinc-500 shrink-0">
                     {Array.from(new Set(signals.flatMap((s) => s.reporters))).length} players
                   </span>
                 </label>
@@ -545,7 +565,7 @@ function ShipPanel({
               className="prose prose-invert prose-sm max-w-none rounded-lg border border-white/[0.06] bg-black/20 p-4"
               dangerouslySetInnerHTML={{ __html: draft.content }}
             />
-            <p className="text-[11px] text-zinc-500">Discord: {draft.discordSummary}</p>
+            <p className="text-xs text-zinc-400">Discord: {draft.discordSummary}</p>
             <div className="flex flex-wrap justify-end gap-2">
               <Button variant="danger" onClick={() => setDraft(null)}>Discard</Button>
               <Button variant="ghost" onClick={() => save(false)} loading={busy === "draft"}>Edit in News</Button>
@@ -559,7 +579,7 @@ function ShipPanel({
       </Panel>
 
       {inProgress.length > 0 && (
-        <p className="text-xs text-zinc-600">
+        <p className="text-xs text-zinc-500">
           {inProgress.length} approved signal{inProgress.length === 1 ? "" : "s"} still in progress on the board.
         </p>
       )}

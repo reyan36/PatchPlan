@@ -24,7 +24,7 @@ export function SourceIcon({ source, size = 13 }: { source: FeedbackSource; size
 }
 
 export function Pill({ className = "", children }: { className?: string; children: ReactNode }) {
-  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${className}`}>{children}</span>;
+  return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${className}`}>{children}</span>;
 }
 
 export function Panel({ className = "", children }: { className?: string; children: ReactNode }) {
@@ -51,7 +51,7 @@ export function Button({
   const styles = {
     primary: "bg-[#FAFAFA] text-black hover:bg-zinc-200",
     ghost: "border border-white/10 text-zinc-300 hover:text-white hover:bg-white/[0.04]",
-    danger: "text-zinc-500 hover:text-red-300 hover:bg-red-500/10",
+    danger: "text-zinc-400 hover:text-red-300 hover:bg-red-500/10",
   }[variant];
   return (
     <button
@@ -83,7 +83,7 @@ export function AINotice({ status }: { status: AIStatus | null }) {
       <LockSimple size={18} weight="duotone" className="text-[#c8ff00] shrink-0 mt-0.5" />
       <div>
         <div className="text-sm font-medium text-zinc-100">{invite ? "Private preview" : "Temporarily unavailable"}</div>
-        <p className="text-xs text-zinc-500 mt-0.5">
+        <p className="text-xs text-zinc-400 mt-0.5">
           {invite
             ? "PatchPlan AI is available to invited accounts while it's in preview. Everything else in PatchPlan works as usual."
             : "PatchPlan AI is taking a short break. Everything else in PatchPlan works as usual, so check back soon."}
@@ -92,3 +92,5 @@ export function AINotice({ status }: { status: AIStatus | null }) {
     </div>
   );
 }
+
+export const SOURCE_LABEL: Record<FeedbackSource, string> = { discord: "Discord", steam: "Steam", reddit: "Reddit", web: "Web", manual: "Pasted" };

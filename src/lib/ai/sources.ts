@@ -43,7 +43,7 @@ async function tavily(query: string, includeDomains: string[], maxResults: numbe
       query,
       // "basic" costs 1 Tavily credit per search, "advanced" 2. Snippets are enough for feedback triage.
       search_depth: process.env.TAVILY_SEARCH_DEPTH === "advanced" ? "advanced" : "basic",
-      max_results: maxResults,
+      max_results: maxResults, // up to 20; doesn't change the cost
       include_domains: includeDomains.length ? includeDomains : undefined,
       time_range: "month",
     }),
@@ -75,31 +75,96 @@ function urlId(url: string) {
   return h.toString(36);
 }
 
-/** Searches Steam, Reddit and the wider web for recent player feedback about a game (3 searches). */
-export async function fetchWebFeedback(gameName: string, subreddit?: string): Promise<FeedbackItem[]> {
-  if (!gameName.trim() || !process.env.TAVILY_API_KEY) return [];
-  await reserveBudget("search", 3);
-  const game = `"${gameName.trim()}"`;
-  const reddit = subreddit ? `reddit.com/r/${subreddit.replace(/^r\//, "")}` : "reddit.com";
+/** Steam app ID from a store link ("store.steampowered.com/app/123/...") or a bare number. */
+export function steamAppId(input?: string) {
+  const s = (input || "").trim();
+  return s.match(/\/app\/(\d{1,10})/)?.[1] || (/^\d{1,10}$/.test(s) ? s : null);
+}
 
-  const batches = await Promise.allSettled([
-    tavily(`${game} review bug OR crash OR balance OR "please add"`, ["steamcommunity.com", "store.steampowered.com"], 8),
-    tavily(`${game} feedback bug balance suggestion`, [reddit], 8),
-    tavily(`${game} player feedback bugs patch`, [], 5),
-  ]);
+async function steamPage(appId: string, reviewType: 0 | 2, perPage: number): Promise<any[]> {
+  // filter 1 = most recent, purchase_type 1 = all purchases; English by default.
+  const input = JSON.stringify({ appid: Number(appId), filter: 1, review_type: reviewType, purchase_type: 1, num_per_page: perPage });
+  const res = await fetch(`https://api.steampowered.com/IUserReviewsService/GetAppReviews/v1/?input_json=${encodeURIComponent(input)}`, {
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(res.status === 429 ? "Steam is rate-limiting requests, try again in a few minutes" : `Steam ${res.status}`);
+  const data = await res.json().catch(() => null);
+  return data?.response?.reviews || [];
+}
 
+/**
+ * Reviews from Steam's public reviews API (IUserReviewsService): free, and always about the right game.
+ * The latest reviews plus the latest negative ones, where most bug reports and balance complaints live.
+ */
+export async function fetchSteamReviews(appId: string): Promise<FeedbackItem[]> {
+  const [recent, negative] = await Promise.all([steamPage(appId, 0, 50), steamPage(appId, 2, 40)]);
+  const seen = new Set<string>();
+  return [...negative, ...recent]
+    .filter((r) => typeof r.review === "string" && r.review.trim().length > 15 && !seen.has(r.recommendationid) && !!seen.add(r.recommendationid))
+    .map((r) => ({
+      id: `steam-${r.recommendationid}`,
+      source: "steam" as const,
+      author: "Steam reviewer",
+      text: clip(`${r.voted_up ? "Recommended" : "Not recommended"} (${Math.round((r.author?.playtime_forever || 0) / 60)}h played): ${r.review}`),
+      url: r.author?.steamid ? `https://steamcommunity.com/profiles/${r.author.steamid}/recommended/${appId}/` : `https://store.steampowered.com/app/${appId}/`,
+    }));
+}
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** True when the game's name appears as a whole word ("Mixtape" matches "Mixtape review", not "Mixtapes" or "MixtapeVinyl"). */
+const mentions = (game: string, text: string) => new RegExp(`(^|[^a-z0-9])${escapeRe(game)}([^a-z0-9]|$)`, "i").test(text);
+
+type Search = { query: string; domains: string[]; max: number; keep: (r: TavilyResult) => boolean };
+
+/**
+ * Searches Reddit, the web and (without a Steam link) Steam for recent feedback about a game.
+ * Results that aren't clearly about this game are dropped, so a common name doesn't pull in other products.
+ */
+export async function fetchWebFeedback(gameName: string, opts: { subreddit?: string; skipSteam?: boolean } = {}) {
+  const name = gameName.trim();
+  if (!name || !process.env.TAVILY_API_KEY) return { items: [] as FeedbackItem[], dropped: 0 };
+  const game = `"${name}"`;
+  const sub = (opts.subreddit || "").trim().replace(/^\/?r\//i, "").replace(/[^A-Za-z0-9_]/g, "");
+  const named = (r: TavilyResult) => mentions(name, `${r.title} ${r.url}`);
+
+  const searches: Search[] = [
+    sub
+      ? { query: `r/${sub} ${name} bug feedback suggestion`, domains: ["reddit.com"], max: 20, keep: (r) => r.url.toLowerCase().includes(`/r/${sub.toLowerCase()}/`) }
+      : { query: `${game} game bug feedback suggestion`, domains: ["reddit.com"], max: 20, keep: named },
+    {
+      query: `${game} video game player feedback bugs patch`,
+      domains: [],
+      max: 15,
+      keep: (r) => named(r) && !/apps\.apple\.com|play\.google\.com|reddit\.com|steam(community|powered)\.com/.test(r.url),
+    },
+  ];
+  if (!opts.skipSteam) {
+    searches.push({
+      query: `${game} review bug OR crash OR balance OR "please add"`,
+      domains: ["steamcommunity.com", "store.steampowered.com"],
+      max: 15,
+      // Workshop items are mods and music packs for other games, never reviews.
+      keep: (r) => named(r) && !/sharedfiles|workshop/i.test(r.url),
+    });
+  }
+
+  await reserveBudget("search", searches.length);
+  const batches = await Promise.allSettled(searches.map((s) => tavily(s.query, s.domains, s.max)));
   if (batches.every((b) => b.status === "rejected")) throw (batches[0] as PromiseRejectedResult).reason;
 
   const seen = new Set<string>();
   const items: FeedbackItem[] = [];
-  batches.forEach((b) => {
+  let dropped = 0;
+  batches.forEach((b, i) => {
     if (b.status !== "fulfilled") return;
     b.value.forEach((r) => {
       if (!r.content || seen.has(r.url)) return;
       seen.add(r.url);
+      if (!searches[i].keep(r)) return void dropped++;
       const source = sourceFor(r.url);
       items.push({ id: `web-${urlId(r.url)}`, source, author: authorFor(r.url, source), text: clip(`${r.title}: ${r.content}`), url: r.url });
     });
   });
-  return items;
+  return { items, dropped };
 }

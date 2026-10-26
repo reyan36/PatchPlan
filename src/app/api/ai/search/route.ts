@@ -31,10 +31,12 @@ export const POST = aiRoute<Body>(async ({ query = "", docs = [] }) => {
   const reply = await chatJson<{ answer: string; hits: { n: number; reason: string }[] }>(
     "small",
     `You search a game studio's workspace (tasks, design docs, devlogs, roadmap, creator contacts, player signals).
-Pick the items that best answer the question, most relevant first, at most 8. Understand intent and synonyms
+Pick only the items that clearly answer the question, most relevant first, at most 5. Understand intent and synonyms
 (e.g. "boss fight" matches "Boss phase 2 rig"). If nothing is relevant, return no hits.
-"answer" is one or two sentences that directly answer the question using only these items.
-Return {"answer":"","hits":[{"n":item number,"reason":"short why"}]}`,
+"answer": ONE plain sentence, under 25 words, that answers the question with concrete facts (names, counts, status).
+No filler, no "based on the items", no restating the question.
+"reason": under 8 words, the fact that makes the item relevant (e.g. "In progress, assigned to audio").
+Return {"answer":"","hits":[{"n":item number,"reason":""}]}`,
     `QUESTION: ${q}\n\nITEMS:\n${top.map(({ d }, n) => `${n}. [${d.type}] ${d.title} — ${d.text.slice(0, 280)}`).join("\n")}`,
     1200
   );
@@ -43,7 +45,7 @@ Return {"answer":"","hits":[{"n":item number,"reason":"short why"}]}`,
   const hits: SearchHit[] = [];
   (reply.hits || []).forEach((h) => {
     const t = top[h.n];
-    if (!t || seen.has(h.n)) return;
+    if (!t || seen.has(h.n) || hits.length >= 5) return;
     seen.add(h.n);
     hits.push({ type: t.d.type, id: t.d.id, title: t.d.title, href: t.d.href, reason: String(h.reason || "").slice(0, 160) });
   });

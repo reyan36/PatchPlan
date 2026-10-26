@@ -80,7 +80,7 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
       <Panel className="p-4 sm:p-5 space-y-3">
         <div>
           <h2 className="text-lg font-semibold text-white tracking-tight">Build Anything</h2>
-          <p className="text-sm text-zinc-500 mt-0.5">Describe a tool your studio needs. The AI designs it, you preview it, then add it to the workspace.</p>
+          <p className="text-sm text-zinc-400 mt-0.5">Describe a tool your studio needs. The AI designs it, you preview it, then add it to the workspace.</p>
         </div>
         <form
           onSubmit={(e) => {
@@ -90,7 +90,7 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
           className="flex flex-col sm:flex-row gap-2"
         >
           <input className={inputClass} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="Localization tracker for 6 languages" />
-          <Button type="submit" loading={busy === "design" && !schema} disabled={!enabled || !prompt.trim()} className="sm:w-auto py-2">
+          <Button type="submit" loading={busy === "design" && !schema} disabled={!enabled || !prompt.trim()} className="sm:w-auto py-2 shrink-0 whitespace-nowrap">
             <Hammer size={13} weight="bold" /> Design it
           </Button>
         </form>
@@ -104,7 +104,7 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
                   setPrompt(ex);
                   design(ex);
                 }}
-                className="px-2.5 py-1 rounded-full border border-white/10 text-xs text-zinc-500 hover:border-white/25 hover:text-zinc-300 disabled:opacity-40"
+                className="px-2.5 py-1 rounded-full border border-white/10 text-xs text-zinc-400 hover:border-white/25 hover:text-zinc-300 disabled:opacity-40"
               >
                 {ex}
               </button>
@@ -122,8 +122,8 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
                 <Icon size={16} weight="duotone" />
               </span>
               <div>
-                <div className="text-sm font-semibold text-white">{schema.name} <span className="ml-1 text-[10px] uppercase tracking-wide text-zinc-600">Preview · {schema.view}</span></div>
-                <div className="text-xs text-zinc-500">{schema.description}</div>
+                <div className="text-sm font-semibold text-white">{schema.name} <span className="ml-1 text-[11px] uppercase tracking-wide text-zinc-500">Preview · {schema.view}</span></div>
+                <div className="text-xs text-zinc-400">{schema.description}</div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -148,9 +148,9 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
       )}
 
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-white">Your modules <span className="text-xs text-zinc-600 font-normal ml-1">{modules.length}</span></h3>
+        <h3 className="text-sm font-semibold text-white">Your modules <span className="text-xs text-zinc-500 font-normal ml-1">{modules.length}</span></h3>
         {modules.length === 0 ? (
-          <p className="text-sm text-zinc-600">Modules you add show up here.</p>
+          <p className="text-sm text-zinc-500">Modules you add show up here.</p>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {modules.map((m) => {
@@ -160,9 +160,9 @@ export function BuildAnything({ user, familyId, enabled }: { user: User; familyI
                   <MIcon size={18} weight="duotone" className="text-zinc-400 mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm text-white truncate">{m.schema?.name}</div>
-                    <div className="text-xs text-zinc-500 line-clamp-2">{m.schema?.description}</div>
+                    <div className="text-xs text-zinc-400 line-clamp-2">{m.schema?.description}</div>
                   </div>
-                  <ArrowRight size={14} className="text-zinc-600 group-hover:text-zinc-300 mt-0.5" />
+                  <ArrowRight size={14} className="text-zinc-500 group-hover:text-zinc-300 mt-0.5" />
                 </Link>
               );
             })}

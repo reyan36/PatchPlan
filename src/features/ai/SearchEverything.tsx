@@ -66,7 +66,7 @@ export function SearchEverything({ user, familyId, enabled, initialQuery = "" }:
         }}
         className="relative"
       >
-        <MagnifyingGlass size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+        <MagnifyingGlass size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" />
         <input
           ref={inputRef}
           value={q}
@@ -79,7 +79,7 @@ export function SearchEverything({ user, familyId, enabled, initialQuery = "" }:
         </Button>
       </form>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-400">
         <span>{corpus ? `${corpus.length} items indexed` : "Indexing workspace…"}</span>
         {!result &&
           EXAMPLES.map((ex) => (
@@ -96,11 +96,11 @@ export function SearchEverything({ user, familyId, enabled, initialQuery = "" }:
           {result.answer && (
             <Panel className="p-4 flex gap-3">
               <Sparkle size={16} weight="fill" className="text-[#c8ff00] shrink-0 mt-0.5" />
-              <p className="text-sm text-zinc-200 leading-relaxed">{result.answer}</p>
+              <p className="text-[15px] text-white leading-relaxed">{result.answer}</p>
             </Panel>
           )}
           {result.hits.length === 0 ? (
-            <p className="text-sm text-zinc-600 px-1">No matching items.</p>
+            <p className="text-sm text-zinc-500 px-1">No matching items.</p>
           ) : (
             <ul className="divide-y divide-white/[0.06] rounded-xl border border-white/10 overflow-hidden">
               {result.hits.map((h) => {
@@ -112,9 +112,9 @@ export function SearchEverything({ user, familyId, enabled, initialQuery = "" }:
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-white truncate">{h.title}</span>
-                          <span className="text-[10px] uppercase tracking-wide text-zinc-600 shrink-0">{meta.label}</span>
+                          <span className="text-[11px] uppercase tracking-wide text-zinc-500 shrink-0">{meta.label}</span>
                         </div>
-                        {h.reason && <p className="text-xs text-zinc-500 mt-0.5">{h.reason}</p>}
+                        {h.reason && <p className="text-[13px] text-zinc-300 mt-0.5">{h.reason}</p>}
                       </div>
                     </Link>
                   </li>

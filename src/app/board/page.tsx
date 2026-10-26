@@ -427,10 +427,15 @@ export default function BoardPage() {
                   {/* Footer indicators */}
                   <div className="flex items-center justify-between text-muted-foreground mt-2">
                     <div className="flex items-center gap-3">
-                      {task.description && <TextAlignLeft size={14} weight="duotone" />}
+                      {task.description && <span title="Has a description"><TextAlignLeft size={14} weight="duotone" /></span>}
                       {!!task.reporters?.length && (
-                        <span className="inline-flex items-center gap-1 text-xs" title={`Reported by ${task.reporters.join(", ")}`}>
-                          <Megaphone size={14} weight="duotone" /> {task.reporters.length}
+                        <span className="group/rep relative inline-flex items-center gap-1 rounded bg-sky-500/10 px-1.5 py-0.5 text-xs text-sky-300">
+                          <Megaphone size={13} weight="duotone" /> {task.reporters.length} {task.reporters.length === 1 ? "player" : "players"}
+                          {/* Hover card: who asked for this, from Player Signal or beta reports. */}
+                          <span className="pointer-events-none absolute bottom-full left-0 z-20 mb-1.5 w-60 rounded-md border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-left text-xs leading-snug text-zinc-300 opacity-0 shadow-lg transition-opacity group-hover/rep:opacity-100">
+                            Player feedback from <span className="text-white">{task.reporters.slice(0, 4).join(", ")}</span>
+                            {task.reporters.length > 4 ? ` +${task.reporters.length - 4}` : ""}, credited when it ships
+                          </span>
                         </span>
                       )}
                     </div>
