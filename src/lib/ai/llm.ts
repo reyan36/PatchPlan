@@ -9,13 +9,14 @@ export const MODELS = {
   /** Fast model for sorting, de-duplicating and reranking. */
   small: process.env.NEMOTRON_SMALL_MODEL || "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B",
   /** Larger model for matching, reasoning and writing. */
-  large: process.env.NEMOTRON_LARGE_MODEL || "nvidia/Llama-3_3-Nemotron-Super-49B-v1_5",
+  large: process.env.NEMOTRON_LARGE_MODEL || "nvidia/nemotron-3-super-120b-a12b",
 };
 
 export type ModelSize = keyof typeof MODELS;
 
 export class AIError extends Error {
-  constructor(message: string, public status = 500) {
+  /** Provider response, for server logs and retries only; never shown to users. */
+  constructor(message: string, public status = 500, public detail = "") {
     super(message);
   }
 }
@@ -36,22 +37,34 @@ export async function chat(
   // Shared daily/monthly cap across all accounts, checked before anything is billed (budget.ts).
   await reserveBudget("llm");
 
-  const res = await fetch(`${BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: MODELS[size],
-      messages,
-      temperature: opts.temperature ?? 0.2,
-      max_tokens: opts.maxTokens ?? 2048,
-      ...(opts.json ? { response_format: { type: "json_object" } } : {}),
-    }),
-    signal: AbortSignal.timeout(90_000),
-  });
+  const send = (thinkingOff: boolean) =>
+    fetch(`${BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: MODELS[size],
+        messages,
+        temperature: opts.temperature ?? 0.2,
+        max_tokens: opts.maxTokens ?? 2048,
+        // Nemotron 3 reasons by default; we only want the answer (cheaper and faster).
+        ...(thinkingOff ? { chat_template_kwargs: { enable_thinking: false } } : {}),
+        ...(opts.json ? { response_format: { type: "json_object" } } : {}),
+      }),
+      signal: AbortSignal.timeout(90_000),
+    });
+
+  let res = await send(true);
+  if (res.status === 400 || res.status === 422) {
+    const detail = await res.clone().text().catch(() => "");
+    if (/chat_template_kwargs|enable_thinking/i.test(detail)) res = await send(false);
+  }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new AIError(`Nebius ${res.status}: ${detail.slice(0, 300)}`, 502);
+    const detail = (await res.text().catch(() => "")).slice(0, 500);
+    console.error(`[ai] Nebius ${res.status} (${MODELS[size]}): ${detail}`);
+    const message =
+      res.status === 429 ? "PatchPlan AI is busy right now. Please try again in a minute." : "PatchPlan AI couldn't finish that request. Please try again.";
+    throw new AIError(message, res.status === 429 ? 429 : 502, detail);
   }
   const data = await res.json();
   recordTokens(data?.usage);
@@ -78,7 +91,7 @@ export async function chatJson<T>(size: ModelSize, system: string, user: string,
   try {
     raw = await chat(size, messages, { json: true, maxTokens });
   } catch (err) {
-    if (err instanceof AIError && err.status === 502 && /response_format/i.test(err.message)) {
+    if (err instanceof AIError && err.status === 502 && /response_format/i.test(err.detail)) {
       raw = await chat(size, messages, { maxTokens });
     } else {
       throw err;

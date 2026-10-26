@@ -42,10 +42,10 @@ Powered by **NVIDIA Nemotron** models on **Nebius Token Factory**.
 
 | Feature | What it does | Model |
 | --- | --- | --- |
-| **Player Signal** | Collects feedback from Discord, Steam and Reddit, sorts and de-duplicates it, and links it to board tasks | Nemotron 3 Nano 30B + Super 49B |
-| **Patch notes** | Turns shipped tasks into player-facing notes and credits the players who reported them | Nemotron Super 49B |
+| **Player Signal** | Collects feedback from Discord, Steam and Reddit, sorts and de-duplicates it, and links it to board tasks | Nemotron 3 Nano 30B + Super 120B |
+| **Patch notes** | Turns shipped tasks into player-facing notes and credits the players who reported them | Nemotron 3 Super 120B |
 | **Search Everything** | One question across tasks, docs, news, roadmap and contacts | Nemotron 3 Nano 30B |
-| **Build Anything** | Describe a tool ("localization tracker") and get a working table, board or card view | Nemotron Super 49B |
+| **Build Anything** | Describe a tool ("localization tracker") and get a working table, board or card view | Nemotron 3 Super 120B |
 
 ![Player Signal pipeline](docs/player-signal.svg)
 
