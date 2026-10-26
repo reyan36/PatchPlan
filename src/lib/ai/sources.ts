@@ -1,6 +1,7 @@
 // Server-only: collect player feedback from Discord (bot token) and the web (Tavily).
 
 import type { FeedbackItem, FeedbackSource } from "./types";
+import { reserveBudget } from "./budget";
 
 const MAX_TEXT = 800;
 
@@ -40,7 +41,8 @@ async function tavily(query: string, includeDomains: string[], maxResults: numbe
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
       query,
-      search_depth: "advanced",
+      // "basic" costs 1 Tavily credit per search, "advanced" 2. Snippets are enough for feedback triage.
+      search_depth: process.env.TAVILY_SEARCH_DEPTH === "advanced" ? "advanced" : "basic",
       max_results: maxResults,
       include_domains: includeDomains.length ? includeDomains : undefined,
       time_range: "month",
@@ -66,9 +68,17 @@ function authorFor(url: string, source: FeedbackSource) {
   return source === "steam" ? "Steam player" : source === "reddit" ? "Reddit player" : "Web";
 }
 
-/** Searches Steam, Reddit and the wider web for recent player feedback about a game. */
+/** Short, stable id for a URL, so collecting again never re-imports the same post. */
+function urlId(url: string) {
+  let h = 5381;
+  for (let i = 0; i < url.length; i++) h = ((h << 5) + h + url.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+/** Searches Steam, Reddit and the wider web for recent player feedback about a game (3 searches). */
 export async function fetchWebFeedback(gameName: string, subreddit?: string): Promise<FeedbackItem[]> {
-  if (!gameName.trim()) return [];
+  if (!gameName.trim() || !process.env.TAVILY_API_KEY) return [];
+  await reserveBudget("search", 3);
   const game = `"${gameName.trim()}"`;
   const reddit = subreddit ? `reddit.com/r/${subreddit.replace(/^r\//, "")}` : "reddit.com";
 
@@ -78,6 +88,8 @@ export async function fetchWebFeedback(gameName: string, subreddit?: string): Pr
     tavily(`${game} player feedback bugs patch`, [], 5),
   ]);
 
+  if (batches.every((b) => b.status === "rejected")) throw (batches[0] as PromiseRejectedResult).reason;
+
   const seen = new Set<string>();
   const items: FeedbackItem[] = [];
   batches.forEach((b) => {
@@ -86,7 +98,7 @@ export async function fetchWebFeedback(gameName: string, subreddit?: string): Pr
       if (!r.content || seen.has(r.url)) return;
       seen.add(r.url);
       const source = sourceFor(r.url);
-      items.push({ id: `web-${items.length}-${r.url.length}`, source, author: authorFor(r.url, source), text: clip(`${r.title}: ${r.content}`), url: r.url });
+      items.push({ id: `web-${urlId(r.url)}`, source, author: authorFor(r.url, source), text: clip(`${r.title}: ${r.content}`), url: r.url });
     });
   });
   return items;

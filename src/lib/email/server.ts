@@ -92,7 +92,7 @@ export async function requireMember(req: Request, scopeId: string) {
 }
 
 /** The workspace owner's account email: the default reply-to, so studios don't have to configure one. */
-async function ownerEmail(scopeId: string) {
+export async function ownerEmail(scopeId: string) {
   const fam = await adminDb().collection("families").doc(scopeId).get();
   const uid = fam.exists ? fam.data()?.ownerId : scopeId;
   if (!uid) return "";

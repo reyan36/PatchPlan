@@ -5,7 +5,8 @@ import { Megaphone, MagnifyingGlass, Hammer, Sparkle } from "@phosphor-icons/rea
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
 import { Login } from "@/components/auth/LazyLogin";
-import { getAIStatus, type AIStatus } from "@/lib/ai/client";
+import { aiReady, getAIStatus, type AIStatus } from "@/lib/ai/client";
+import { AINotice } from "@/features/ai/ui";
 import dynamic from "next/dynamic";
 
 // Each tab is its own chunk, so opening one tab doesn't download the others.
@@ -45,7 +46,7 @@ export default function AIPage() {
   if (!user) return <Login />;
 
   const familyId = activeFamily ? activeFamily.id : null;
-  const enabled = !!status?.nebius;
+  const enabled = aiReady(status);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -56,7 +57,7 @@ export default function AIPage() {
             <span className="ml-1 self-center px-1.5 py-0.5 rounded bg-[#c8ff00] text-[#0a0a0a] text-[10px] font-bold tracking-[0.08em]">NEBIUS</span>
           </h1>
           <p className="text-sm text-zinc-500 mt-1">
-            Powered by NVIDIA Nemotron on Nebius{status && !enabled ? " · not configured on this server" : ""}.
+            Powered by NVIDIA Nemotron on Nebius.
           </p>
         </div>
         <div className="flex gap-1 p-1 rounded-lg border border-white/10 bg-white/[0.02] self-start">
@@ -74,6 +75,8 @@ export default function AIPage() {
           ))}
         </div>
       </header>
+
+      <AINotice status={status} />
 
       {tab === "signal" && <PlayerSignal user={user} familyId={familyId} status={status} />}
       {tab === "search" && <SearchEverything key={initialQuery} user={user} familyId={familyId} enabled={enabled} initialQuery={initialQuery} />}

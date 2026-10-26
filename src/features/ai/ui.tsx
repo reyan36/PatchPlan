@@ -1,7 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { DiscordLogo, SteamLogo, RedditLogo, Globe, PencilSimple, CircleNotch } from "@phosphor-icons/react";
+import { DiscordLogo, SteamLogo, RedditLogo, Globe, PencilSimple, CircleNotch, LockSimple } from "@phosphor-icons/react";
+import { aiReady, type AIStatus } from "@/lib/ai/client";
 import type { FeedbackSource, SignalCategory } from "@/lib/ai/types";
 
 export const CATEGORY_STYLE: Record<SignalCategory, string> = {
@@ -71,4 +72,23 @@ export const inputClass =
 export function ErrorNote({ message }: { message: string | null }) {
   if (!message) return null;
   return <div className="rounded-md border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">{message}</div>;
+}
+
+/** Explains why AI is unavailable for this account, in product terms (never config names). */
+export function AINotice({ status }: { status: AIStatus | null }) {
+  if (!status || aiReady(status)) return null;
+  const invite = !status.allowed;
+  return (
+    <div className="flex gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <LockSimple size={18} weight="duotone" className="text-[#c8ff00] shrink-0 mt-0.5" />
+      <div>
+        <div className="text-sm font-medium text-zinc-100">{invite ? "Private preview" : "Temporarily unavailable"}</div>
+        <p className="text-xs text-zinc-500 mt-0.5">
+          {invite
+            ? "PatchPlan AI is available to invited accounts while it's in preview. Everything else in PatchPlan works as usual."
+            : "PatchPlan AI is taking a short break. Everything else in PatchPlan works as usual, so check back soon."}
+        </p>
+      </div>
+    </div>
+  );
 }

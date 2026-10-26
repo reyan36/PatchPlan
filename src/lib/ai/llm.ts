@@ -1,6 +1,8 @@
 // Server-only: Nemotron models on Nebius Token Factory (OpenAI-compatible API).
 // Never import this from a client component — it reads the API key.
 
+import { recordTokens, reserveBudget } from "./budget";
+
 const BASE_URL = (process.env.NEBIUS_BASE_URL || "https://api.tokenfactory.nebius.com/v1").replace(/\/$/, "");
 
 export const MODELS = {
@@ -30,7 +32,9 @@ export async function chat(
   opts: { temperature?: number; maxTokens?: number; json?: boolean } = {}
 ): Promise<string> {
   const key = process.env.NEBIUS_API_KEY;
-  if (!key) throw new AIError("NEBIUS_API_KEY is not set on the server.", 503);
+  if (!key) throw new AIError("PatchPlan AI isn't available right now. Please try again later.", 503);
+  // Shared daily/monthly cap across all accounts, checked before anything is billed (budget.ts).
+  await reserveBudget("llm");
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -50,6 +54,7 @@ export async function chat(
     throw new AIError(`Nebius ${res.status}: ${detail.slice(0, 300)}`, 502);
   }
   const data = await res.json();
+  recordTokens(data?.usage);
   return data?.choices?.[0]?.message?.content ?? "";
 }
 

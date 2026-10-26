@@ -11,7 +11,9 @@ import { auth } from "@/lib/firebase-app";
 
 type Severity = "info" | "warn" | "high";
 type Event = { id: string; type: string; label: string; severity: Severity; detail: string; at: number; ip: string; country: string; path: string; uid: string; email: string; dropped: number };
-type Data = { events: Event[]; alerts: { email: boolean; webhook: boolean; recipients: number } };
+type Usage = { llm: number; search: number; tokensIn: number; tokensOut: number };
+type AIBudget = { today: Usage; month: Usage; limits: { llmDay: number; llmMonth: number; searchDay: number; searchMonth: number }; paused: boolean };
+type Data = { events: Event[]; alerts: { email: boolean; webhook: boolean; recipients: number }; ai: AIBudget | null };
 
 const DAY = 86400000;
 const TONE: Record<Severity, string> = {
@@ -139,6 +141,8 @@ export default function SecurityAdminPage() {
         </div>
       </Panel>
 
+      {data.ai && <AIUsage ai={data.ai} />}
+
       <div className="grid grid-cols-3 gap-3">
         {(
           [
@@ -203,5 +207,45 @@ export default function SecurityAdminPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+/** Shared AI spending caps (lib/ai/budget.ts): Nebius calls and Tavily searches, today and this month. */
+function AIUsage({ ai }: { ai: AIBudget }) {
+  const rows = [
+    { label: "Nebius AI calls", today: ai.today.llm, dayMax: ai.limits.llmDay, month: ai.month.llm, monthMax: ai.limits.llmMonth },
+    { label: "Tavily searches", today: ai.today.search, dayMax: ai.limits.searchDay, month: ai.month.search, monthMax: ai.limits.searchMonth },
+  ];
+  const k = (n: number) => (n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
+  return (
+    <Panel className="p-5">
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm font-semibold text-white">AI usage</p>
+        <span className={`text-[11px] px-2 py-0.5 rounded-full border ${ai.paused ? "border-amber-500/30 text-amber-300 bg-amber-500/10" : "border-emerald-500/25 text-emerald-300 bg-emerald-500/10"}`}>
+          {ai.paused ? "Paused (AI_DISABLED)" : "On"}
+        </span>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        {rows.map((r) => {
+          const pct = Math.min(100, Math.round((r.month / r.monthMax) * 100));
+          return (
+            <div key={r.label}>
+              <div className="flex items-baseline justify-between text-xs">
+                <span className="text-zinc-300">{r.label}</span>
+                <span className="text-zinc-500">
+                  today {r.today}/{r.dayMax} · month {r.month}/{r.monthMax}
+                </span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                <div className={`h-full rounded-full ${pct >= 80 ? "bg-amber-400" : "bg-[#c8ff00]/80"}`} style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-zinc-600 mt-4">
+        Tokens this month: {k(ai.month.tokensIn)} in · {k(ai.month.tokensOut)} out. Limits reset daily and monthly (UTC); change them with AI_GLOBAL_DAILY_LIMIT, AI_GLOBAL_MONTHLY_LIMIT, TAVILY_DAILY_LIMIT and TAVILY_MONTHLY_LIMIT on Vercel.
+      </p>
+    </Panel>
   );
 }

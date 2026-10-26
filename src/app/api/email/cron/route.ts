@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { buildDigest } from "@/lib/email/digest";
-import { adminDb, appUrl, loadSettings, sendToSubscribers, studioName } from "@/lib/email/server";
+import { aiAllowed } from "@/lib/ai/budget";
+import { adminDb, appUrl, loadSettings, ownerEmail, sendToSubscribers, studioName } from "@/lib/email/server";
 import { logEvent, pruneEvents } from "@/lib/security/server";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +46,9 @@ export async function GET(req: Request) {
   for (const job of jobs) {
     try {
       const [settings, name] = await Promise.all([loadSettings(job.scopeId), studioName(job.scopeId)]);
-      const digest = await buildDigest(job.scopeId, job.kind, base, { studioName: name, aiIntro: settings.aiIntro });
+      // The AI intro only runs for workspaces owned by an account allowed to use AI.
+      const aiIntro = settings.aiIntro && aiAllowed(await ownerEmail(job.scopeId));
+      const digest = await buildDigest(job.scopeId, job.kind, base, { studioName: name, aiIntro });
       const stamp = job.kind === "weekly" ? { lastWeeklyAt: FieldValue.serverTimestamp() } : { lastDailyAt: FieldValue.serverTimestamp() };
 
       if (digest.empty) {

@@ -20,7 +20,7 @@ import { ArrowsClockwise, CaretDown, CheckCircle, Link as LinkIcon, Plus, Rocket
 import { db } from "@/lib/firebase";
 import { personalOnly, scopeTasks, useLiveQuery } from "@/lib/live";
 import { notifyPatchNotes } from "@/lib/discord";
-import { aiFetch, scopeFields, type AIStatus } from "@/lib/ai/client";
+import { aiFetch, aiReady, scopeFields, type AIStatus } from "@/lib/ai/client";
 import type { FeedbackItem, PatchNotesDraft, ShippedTask, SignalCluster, TaskBrief, TaskTag } from "@/lib/ai/types";
 import { Button, CATEGORY_STYLE, ErrorNote, Panel, Pill, SEVERITY_DOT, SourceIcon, inputClass } from "./ui";
 
@@ -188,7 +188,7 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
             <Button variant="ghost" onClick={() => setShowSources((v) => !v)}>
               Sources <CaretDown size={11} className={showSources ? "rotate-180" : ""} />
             </Button>
-            <Button onClick={runPipeline} loading={phase !== "idle"} disabled={!status?.nebius}>
+            <Button onClick={runPipeline} loading={phase !== "idle"} disabled={!aiReady(status)}>
               {phase === "idle" && <ArrowsClockwise size={13} weight="bold" />}
               {phase === "collecting" ? "Collecting…" : phase === "triaging" ? "Sorting & matching…" : "Collect feedback"}
             </Button>
@@ -215,15 +215,14 @@ export function PlayerSignal({ user, familyId, status }: { user: User; familyId:
             </label>
             <div className="sm:col-span-3 flex items-center justify-between gap-3">
               <p className="text-[11px] text-zinc-600">
-                {!status?.discordBot && "Discord needs DISCORD_BOT_TOKEN on the server. "}
-                {!status?.tavily && "Steam/Reddit search needs TAVILY_API_KEY. "}
+                {!status?.tavily && "Steam and Reddit search isn't available yet. "}
+                {!status?.discordBot && "Discord import isn't connected yet. "}
               </p>
               <Button variant="ghost" onClick={saveSources}>Save sources</Button>
             </div>
           </div>
         )}
 
-        {!status?.nebius && <ErrorNote message="NEBIUS_API_KEY isn't set on the server, so the AI can't run yet. See .env.example." />}
         <ErrorNote message={error} />
         {note && <div className="text-xs text-zinc-400">{note}</div>}
       </Panel>

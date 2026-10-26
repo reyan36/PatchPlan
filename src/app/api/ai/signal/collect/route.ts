@@ -1,4 +1,4 @@
-import { aiRoute } from "@/lib/ai/auth";
+import { aiRoute, chargeWebSearch } from "@/lib/ai/auth";
 import { fetchDiscordFeedback, fetchWebFeedback } from "@/lib/ai/sources";
 import type { FeedbackItem } from "@/lib/ai/types";
 
@@ -13,8 +13,11 @@ type Body = {
   manual?: string;
 };
 
-export const POST = aiRoute<Body>(async (body) => {
+export const POST = aiRoute<Body>(async (body, uid) => {
   const errors: string[] = [];
+  // Web search is the expensive source: a per-account daily limit on top of the shared budget.
+  const searchWeb = !!body.gameName?.trim() && !!process.env.TAVILY_API_KEY;
+  if (searchWeb) await chargeWebSearch(uid);
   const settle = async (label: string, p: Promise<FeedbackItem[]>) => {
     try {
       return await p;
@@ -37,7 +40,7 @@ export const POST = aiRoute<Body>(async (body) => {
 
   const [discord, web] = await Promise.all([
     body.discordChannelId ? settle("Discord", fetchDiscordFeedback(body.discordChannelId)) : Promise.resolve([]),
-    body.gameName ? settle("Web", fetchWebFeedback(body.gameName, body.subreddit)) : Promise.resolve([]),
+    searchWeb ? settle("Web", fetchWebFeedback(body.gameName!, body.subreddit)) : Promise.resolve([]),
   ]);
 
   return {

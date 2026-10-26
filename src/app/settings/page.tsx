@@ -18,7 +18,7 @@ import { IntegrationsTab } from "@/features/integrations/IntegrationsTab";
 import { EmailSettingsForm } from "@/features/email/EmailSetup";
 import { DomainCard } from "@/features/email/DomainCard";
 import { getEmailStatus, type EmailStatus } from "@/lib/email/client";
-import { getAIStatus, type AIStatus } from "@/lib/ai/client";
+import { aiReady, getAIStatus, type AIStatus } from "@/lib/ai/client";
 import { DEFAULT_SETTINGS, type EmailSettings } from "@/lib/email/types";
 import type { DiscordEvent } from "@/lib/discord";
 import { FEATURES, TOUR_SEEN_KEY } from "@/features/tour/ProductTour";
@@ -345,13 +345,19 @@ function AISection() {
   useEffect(() => {
     getAIStatus().then(setStatus);
   }, []);
+  const ready = aiReady(status);
   const rows = [
-    { ok: status?.nebius, title: "Nebius Token Factory", body: "NEBIUS_API_KEY runs every AI feature." },
-    { ok: status?.tavily, title: "Tavily search", body: "TAVILY_API_KEY finds player feedback on Steam, Reddit and the web." },
-    { ok: status?.discordBot, title: "Discord bot", body: "DISCORD_BOT_TOKEN reads your feedback channel." },
+    { ok: ready, title: "AI assistant", body: "Search, Build, Player Signal, patch notes and email drafts." },
+    { ok: ready && status?.tavily, title: "Web feedback", body: "Finds player feedback on Steam, Reddit and the web." },
+    { ok: ready && status?.discordBot, title: "Discord feedback", body: "Reads your community's feedback channel." },
   ];
   return (
-    <Section title="PatchPlan AI" description="AI runs on the server. Keys are set in your environment, not here.">
+    <Section title="PatchPlan AI" description="AI runs securely on PatchPlan's servers. Nothing to set up on your side.">
+      {status && !ready && (
+        <p className="mb-4 text-xs text-zinc-500">
+          {!status.allowed ? "PatchPlan AI is available to invited accounts while it's in preview." : "PatchPlan AI is temporarily unavailable. Please check back soon."}
+        </p>
+      )}
       <ul className="space-y-3">
         {rows.map((r) => (
           <li key={r.title} className="flex gap-2.5">

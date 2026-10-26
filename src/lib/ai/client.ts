@@ -18,11 +18,15 @@ export async function aiFetch<T>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-export type AIStatus = { nebius: boolean; tavily: boolean; discordBot: boolean; models: { small: string; large: string } };
+export type AIStatus = { nebius: boolean; tavily: boolean; discordBot: boolean; paused?: boolean; allowed?: boolean; models: { small: string; large: string } };
+
+/** Whether AI can run for this account right now. */
+export const aiReady = (s: AIStatus | null) => !!s?.nebius && !s.paused && !!s.allowed;
 
 export async function getAIStatus(): Promise<AIStatus | null> {
   try {
-    return await (await fetch("/api/ai/status")).json();
+    const token = await auth.currentUser?.getIdToken();
+    return await (await fetch("/api/ai/status", { headers: token ? { Authorization: `Bearer ${token}` } : {} })).json();
   } catch {
     return null;
   }

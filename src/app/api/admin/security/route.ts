@@ -2,18 +2,18 @@
 
 import { adminDb, emailRoute } from "@/lib/email/server";
 import { EVENT_LABEL, SECURITY_EVENTS, logEvent, requireAdmin, sendAlert } from "@/lib/security/server";
+import { budgetUsage } from "@/lib/ai/budget";
 
 export const dynamic = "force-dynamic";
 
 export const GET = emailRoute(async (req) => {
   await requireAdmin(req);
-  const snap = await adminDb()
-    .collection(SECURITY_EVENTS)
-    .where("at", ">=", Date.now() - 7 * 86400000)
-    .orderBy("at", "desc")
-    .limit(500)
-    .get();
+  const [snap, ai] = await Promise.all([
+    adminDb().collection(SECURITY_EVENTS).where("at", ">=", Date.now() - 7 * 86400000).orderBy("at", "desc").limit(500).get(),
+    budgetUsage().catch(() => null),
+  ]);
   return {
+    ai,
     events: snap.docs.map((d) => {
       const e = d.data();
       return { id: d.id, type: e.type, label: EVENT_LABEL[e.type as keyof typeof EVENT_LABEL] ?? e.type, severity: e.severity, detail: e.detail, at: e.at, ip: e.ip, country: e.country, path: e.path, uid: e.uid, email: e.email, dropped: e.dropped || 0 };
