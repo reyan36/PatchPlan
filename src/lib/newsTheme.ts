@@ -99,7 +99,7 @@ export function themeVars(theme?: string, accent?: string): CSSProperties {
 }
 
 /** Readable text colour on top of the accent (dark on bright accents, white on deep ones). */
-function onAccent(hex: string) {
+export function onAccent(hex: string) {
   const h = hex.replace("#", "");
   const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h.slice(0, 6);
   const n = parseInt(full, 16);
@@ -123,4 +123,43 @@ export function readingStats(html?: string) {
 export function formatDate(ms?: number) {
   if (!ms) return "";
   return new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+// ---- Shared page design (News + Roadmap) ----------------------------------
+
+/** How the "Get updates by email" section looks on public pages. */
+export type SignupStyle = "sleek" | "bold" | "card" | "minimal";
+
+export const SIGNUP_STYLES: Record<SignupStyle, { label: string; description: string }> = {
+  sleek: { label: "Sleek", description: "Quiet row above the footer" },
+  bold: { label: "Bold", description: "Full-width colour band" },
+  card: { label: "Card", description: "Centered card that stands out" },
+  minimal: { label: "Minimal", description: "One line, no frame" },
+};
+
+export type PageDesign = { theme: NewsTheme; accent: string; signupStyle: SignupStyle; signupColor: string };
+export type DesignPage = "news" | "roadmap";
+
+/** Whether the roadmap uses the News design. On unless the studio turned it off. */
+export const designShared = (cfg: Record<string, any>) => cfg.designShared !== false;
+
+/**
+ * The design a public page uses, read from its public_configs doc.
+ * While the design is shared, the roadmap reads the News fields so both pages always match.
+ */
+export function pageDesign(cfg: Record<string, any>, page: DesignPage): PageDesign {
+  const src = page === "roadmap" && designShared(cfg) ? "news" : page;
+  const theme = cfg[`${src}Theme`] || cfg.theme;
+  const style = cfg[`${src}SignupStyle`];
+  return {
+    theme: theme in NEWS_THEMES ? theme : "dark",
+    accent: String(cfg[`${src}Accent`] || ""),
+    signupStyle: style in SIGNUP_STYLES ? style : "sleek",
+    signupColor: String(cfg[`${src}SignupColor`] || ""),
+  };
+}
+
+/** The public_configs fields a page's design is saved to. */
+export function designFields(page: DesignPage, d: PageDesign) {
+  return { [`${page}Theme`]: d.theme, [`${page}Accent`]: d.accent, [`${page}SignupStyle`]: d.signupStyle, [`${page}SignupColor`]: d.signupColor };
 }

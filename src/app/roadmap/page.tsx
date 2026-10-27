@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { ShareModal } from "@/components/ui/ShareModal";
 import { RoadmapSettingsModal } from "@/components/ui/RoadmapSettingsModal";
 import { PageLoader } from "@/components/ui/PageLoader";
+import { refreshPublicPages } from "@/lib/publicRefresh";
 
 type RoadmapItem = {
   id: string;
@@ -90,6 +91,9 @@ export default function RoadmapPage() {
     };
   }, [user, activeFamily]);
 
+  // The public roadmap is cached; refresh it after each change so players see it right away.
+  const refreshPublic = () => refreshPublicPages(activeFamily ? activeFamily.id : user?.uid);
+
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newItemTitle.trim()) return;
@@ -103,6 +107,7 @@ export default function RoadmapPage() {
       bullets: newItemBullets.split('\n').filter(b => b.trim() !== ""),
       createdAt: serverTimestamp()
     });
+    refreshPublic();
 
     setIsAddingItem(false);
     setNewItemTitle("");
@@ -111,6 +116,7 @@ export default function RoadmapPage() {
 
   const deleteItem = async (id: string) => {
     await deleteDoc(doc(db, "roadmap", id));
+    refreshPublic();
   };
 
   const handleDrop = async (e: React.DragEvent, targetColumn: string) => {
@@ -120,6 +126,7 @@ export default function RoadmapPage() {
     const item = items.find(i => i.id === itemId);
     if (item && item.column !== targetColumn) {
       await updateDoc(doc(db, "roadmap", itemId), { column: targetColumn });
+      refreshPublic();
     }
   };
 
@@ -141,6 +148,7 @@ export default function RoadmapPage() {
       category: editItemCategory,
       bullets: editItemBullets.split('\n').filter(b => b.trim() !== ""),
     });
+    refreshPublic();
 
     setEditingItem(null);
   };
@@ -158,6 +166,7 @@ export default function RoadmapPage() {
       // If doc doesn't exist yet, set it
       await setDoc(doc(db, "roadmap_configs", scopeId), { columns: updatedColumns });
     });
+    refreshPublic();
     setNewColumnName("");
   };
 
@@ -167,6 +176,7 @@ export default function RoadmapPage() {
       const scopeId = activeFamily ? activeFamily.id : user.uid;
       const updatedColumns = columns.filter(c => c !== columnName);
       await updateDoc(doc(db, "roadmap_configs", scopeId), { columns: updatedColumns });
+      refreshPublic();
     }
   };
 
@@ -271,7 +281,7 @@ export default function RoadmapPage() {
                           value={item.column}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
-                            updateDoc(doc(db, "roadmap", item.id), { column: e.target.value });
+                            updateDoc(doc(db, "roadmap", item.id), { column: e.target.value }).then(refreshPublic);
                           }}
                           className="text-xs bg-background border border-border rounded px-1 py-0.5 focus:outline-none"
                         >

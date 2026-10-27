@@ -4,8 +4,9 @@ import Link from "next/link";
 import { MagnifyingGlass, DiscordLogo, XLogo, Globe, ArrowRight } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { unstable_cache } from "next/cache";
+import { publicTag } from "@/lib/publicCache";
 import { PublicFooter } from "@/components/email/PublicFooter";
-import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate } from "@/lib/newsTheme";
+import { themeVars, resolveTheme, normalizeUrl, readingStats, formatDate, pageDesign, type SignupStyle } from "@/lib/newsTheme";
 
 // Search and category filters use the query string, so the page renders per request, but the
 // studio's articles and settings are cached for a minute: one Firestore read burst per minute.
@@ -33,9 +34,11 @@ type ConfigData = {
   newsHeading: string;
   description: string;
   logoUrl: string;
+  signupStyle: SignupStyle;
+  signupColor: string;
 };
 
-const getNewsData = unstable_cache(async (slug: string) => {
+async function fetchNewsData(slug: string) {
   let familyId = slug;
   try {
     const configSnap = await getDocs(query(collection(db, "public_configs"), where("newsSlug", "==", slug)));
@@ -56,6 +59,8 @@ const getNewsData = unstable_cache(async (slug: string) => {
     newsHeading: "",
     description: "",
     logoUrl: "",
+    signupStyle: "sleek",
+    signupColor: "",
   };
 
   try {
@@ -78,6 +83,9 @@ const getNewsData = unstable_cache(async (slug: string) => {
       if (d.newsHeading) config.newsHeading = d.newsHeading;
       if (d.newsDescription) config.description = d.newsDescription;
       if (d.newsLogoUrl || d.logoUrl) config.logoUrl = d.newsLogoUrl || d.logoUrl;
+      const design = pageDesign(d, "news");
+      config.signupStyle = design.signupStyle;
+      config.signupColor = design.signupColor;
       if (d.newsStudioName || d.studioName || d.roadmapStudioName) {
         familyName = d.newsStudioName || d.studioName || d.roadmapStudioName;
       }
@@ -123,7 +131,10 @@ const getNewsData = unstable_cache(async (slug: string) => {
   }
 
   return { familyName, articles, config, expired };
-}, ["public-news"], { revalidate: 60 });
+}
+
+// Tagged per URL key so a dashboard edit can refresh it at once (see /api/public/refresh).
+const getNewsData = (slug: string) => unstable_cache(fetchNewsData, ["public-news"], { revalidate: 60, tags: [publicTag(slug)] })(slug);
 
 export async function generateMetadata({ params }: { params: { familyId: string } }): Promise<Metadata> {
   const { familyName, config } = await getNewsData(params.familyId);
@@ -360,7 +371,12 @@ export default async function PublicNewsPage({ params, searchParams }: { params:
         )}
       </main>
 
-      <PublicFooter scopeId={params.familyId} source="news" studioName={familyName} />
+      <PublicFooter
+        scopeId={params.familyId}
+        source="news"
+        studioName={familyName}
+        design={{ signupStyle: config.signupStyle, signupColor: config.signupColor, accent: config.accent || resolveTheme(config.theme).defaultAccent }}
+      />
     </div>
   );
 }

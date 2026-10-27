@@ -1,5 +1,6 @@
 "use client";
 
+import { refreshPublicPages } from "@/lib/publicRefresh";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useFamily } from "@/lib/FamilyContext";
@@ -232,6 +233,7 @@ export default function NewsPage() {
       updatedAt: serverTimestamp(),
       ...(publishing && !a.publishedAt ? { publishedAt: serverTimestamp() } : {}),
     });
+    refreshPublicPages(scopeId);
   };
 
   const performDelete = async () => {
@@ -240,6 +242,7 @@ export default function NewsPage() {
     setConfirmDelete(null);
     setArticles(prev => prev.filter(a => a.id !== id));
     await deleteDoc(doc(db, "articles", id));
+    refreshPublicPages(scopeId);
   };
 
   const publicArticleUrl = (id: string) => `/p/article/${id}`;

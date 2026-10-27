@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { db } from "@/lib/firebase";
+import { refreshPublicPages } from "@/lib/publicRefresh";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { LinkSimple, Globe, Clock, CheckCircle, Trash } from "@phosphor-icons/react";
 
@@ -51,6 +52,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
         }
       } else {
         setActiveExpiry(0);
+      refreshPublicPages(scopeId);
       }
       setIsFetching(false);
     };
@@ -72,6 +74,7 @@ export function ShareModal({ isOpen, onClose, scopeId, sharePath, title }: Share
       }, { merge: true });
 
       setActiveExpiry(expiresAt);
+      refreshPublicPages(scopeId);
       setActiveSlug(newSlug);
 
       const newUrl = `${window.location.origin}${sharePath}/${newSlug}`;

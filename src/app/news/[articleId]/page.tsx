@@ -1,5 +1,6 @@
 "use client";
 
+import { refreshPublicPages } from "@/lib/publicRefresh";
 import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
@@ -269,6 +270,8 @@ export default function ArticleEditor({ params }: { params: { articleId: string 
         ...overrides,
       });
       dirtyRef.current = false;
+      // Published edits (and publish/unpublish) show on the public news page right away.
+      if (status === "published" || "status" in overrides) refreshPublicPages(meta.familyId || meta.userId);
       setSaveState("saved");
       setLastSaved(Date.now());
     } catch (err) {
@@ -338,6 +341,7 @@ export default function ArticleEditor({ params }: { params: { articleId: string 
     dirtyRef.current = false;
     clearTimeout(saveTimer.current);
     await deleteDoc(doc(db, "articles", articleId));
+    refreshPublicPages(meta.familyId || meta.userId);
     router.push("/news");
   };
 

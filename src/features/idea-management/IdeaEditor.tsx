@@ -157,17 +157,26 @@ export function IdeaEditor({ ideaId }: { ideaId: string }) {
   };
 
   // Loads the saved whiteboard (if any) and marks the doc unsaved when the board changes.
-  const handleCanvasMount = async (ed: TldrawEditor) => {
+  // Not async: tldraw calls whatever onMount returns as a cleanup on unmount, so it must be a function.
+  const handleCanvasMount = (ed: TldrawEditor) => {
     setTldrawEditor(ed);
-    if (idea?.canvas) {
-      try {
-        const { loadSnapshot } = await import("tldraw");
-        loadSnapshot(ed.store, JSON.parse(idea.canvas));
-      } catch (err) {
-        console.warn("Couldn't load the saved whiteboard", err);
+    let stop: (() => void) | null = null;
+    let gone = false;
+    (async () => {
+      if (idea?.canvas) {
+        try {
+          const { loadSnapshot } = await import("tldraw");
+          if (!gone) loadSnapshot(ed.store, JSON.parse(idea.canvas));
+        } catch (err) {
+          console.warn("Couldn't load the saved whiteboard", err);
+        }
       }
-    }
-    ed.store.listen(() => setIsDirty(true), { source: "user", scope: "document" });
+      if (!gone) stop = ed.store.listen(() => setIsDirty(true), { source: "user", scope: "document" });
+    })();
+    return () => {
+      gone = true;
+      stop?.();
+    };
   };
 
   const saveTitle = async () => {
