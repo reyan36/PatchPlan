@@ -49,6 +49,8 @@ export type Campaign = {
   theme: EmailTheme;
   audience: Audience;
   kind: "campaign" | "weekly" | "daily";
+  /** Sent by the scheduled weekly/daily job, not by a person. */
+  auto?: boolean;
   status: "draft" | "sending" | "sent" | "failed";
   recipients?: number;
   error?: string;
@@ -69,6 +71,11 @@ export type EmailSettings = {
   daily: { enabled: boolean };
   /** Let the AI write a short intro for automatic digests. */
   aiIntro: boolean;
+  /** Run date (UTC, YYYY-MM-DD) of a scheduled send the owner cancelled. */
+  skip?: { daily?: string; weekly?: string };
+  /** Written by the cron only. */
+  lastDailyAt?: any;
+  lastWeeklyAt?: any;
 };
 
 export const DEFAULT_THEME: EmailTheme = { accent: "#c8ff00", mode: "dark", font: "sans" };

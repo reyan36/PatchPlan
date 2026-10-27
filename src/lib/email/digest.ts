@@ -23,8 +23,13 @@ async function scoped(col: string, scopeId: string): Promise<DocumentData[]> {
 
 export type Digest = { subject: string; preheader: string; blocks: EmailBlock[]; empty: boolean };
 
-export async function buildDigest(scopeId: string, kind: "weekly" | "daily", base: string, opts: { studioName: string; aiIntro: boolean }): Promise<Digest> {
-  const since = Date.now() - (kind === "weekly" ? 7 : 1) * 24 * 60 * 60 * 1000;
+export async function buildDigest(
+  scopeId: string,
+  kind: "weekly" | "daily",
+  base: string,
+  opts: { studioName: string; aiIntro: boolean; /** Start of the period covered (schedule.ts digestSince). */ since?: number }
+): Promise<Digest> {
+  const since = opts.since ?? Date.now() - (kind === "weekly" ? 7 : 1) * 24 * 60 * 60 * 1000;
   const [articles, tasks] = await Promise.all([scoped("articles", scopeId), scoped("tasks", scopeId)]);
 
   const news = articles
@@ -61,7 +66,8 @@ export async function buildDigest(scopeId: string, kind: "weekly" | "daily", bas
     blocks.push({
       id: newBlockId(),
       type: "articles",
-      items: news.map((a) => ({ title: a.title || "Untitled", excerpt: a.excerpt || "", url: `${base}/p/article/${a.id}`, image: a.coverImage || undefined })),
+      // No `image: undefined`: Firestore rejects undefined, which used to stop scheduled sends being recorded.
+      items: news.map((a) => ({ title: a.title || "Untitled", excerpt: a.excerpt || "", url: `${base}/p/article/${a.id}`, ...(a.coverImage ? { image: a.coverImage } : {}) })),
     });
   }
   if (shipped.length) {

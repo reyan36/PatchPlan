@@ -18,6 +18,7 @@ const EmailDesigner = dynamic(() => import("@/features/email/EmailDesigner").the
 import { Subscribers } from "@/features/email/Subscribers";
 import { EmailSettingsForm, SignupShare } from "@/features/email/EmailSetup";
 import { DomainCard } from "@/features/email/DomainCard";
+import { UpcomingDigest } from "@/features/email/UpcomingDigest";
 import { PageLoader } from "@/components/ui/PageLoader";
 
 const TABS = [
@@ -262,9 +263,13 @@ export default function EmailPage() {
                     <h3 className="text-sm font-semibold text-white flex items-center gap-2"><CalendarCheck size={16} weight="duotone" /> Automatic updates</h3>
                     <Button variant="ghost" onClick={() => select("settings")}>Edit</Button>
                   </div>
-                  <Automation on={settings.weekly.enabled} title="Weekly update" detail={`Every ${DAYS[settings.weekly.day]} · ${counts.weekly ?? 0} subscribers`} />
-                  <Automation on={settings.daily.enabled} title="Daily digest" detail={`When something ships · ${counts.daily ?? 0} subscribers`} />
-                  <p className="text-[11px] text-zinc-600">Built from published news and tasks moved to Done. Skipped when nothing is new.</p>
+                  <Automation on={settings.weekly.enabled} title="Weekly update" detail={`Every ${DAYS[settings.weekly.day]} · ${counts.weekly ?? 0} subscribers`}>
+                    {settings.weekly.enabled && scopeId && <UpcomingDigest kind="weekly" scopeId={scopeId} settings={settings} subscribers={counts.weekly ?? 0} />}
+                  </Automation>
+                  <Automation on={settings.daily.enabled} title="Daily digest" detail={`When something ships · ${counts.daily ?? 0} subscribers`}>
+                    {settings.daily.enabled && scopeId && <UpcomingDigest kind="daily" scopeId={scopeId} settings={settings} subscribers={counts.daily ?? 0} />}
+                  </Automation>
+                  <p className="text-xs text-zinc-500">Everything new since the last email (published news and tasks moved to Done) goes out together in one. Skipped when nothing is new.</p>
                 </Panel>
               </div>
 
@@ -355,13 +360,14 @@ function Stat({ label, value }: { label: string; value: number | null }) {
   );
 }
 
-function Automation({ on, title, detail }: { on: boolean; title: string; detail: string }) {
+function Automation({ on, title, detail, children }: { on: boolean; title: string; detail: string; children?: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
-      <span className={`w-2 h-2 rounded-full ${on ? "bg-emerald-400" : "bg-zinc-600"}`} />
-      <div className="flex-1">
+    <div className="flex items-start gap-3">
+      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${on ? "bg-emerald-400" : "bg-zinc-600"}`} />
+      <div className="flex-1 min-w-0">
         <div className="text-sm text-zinc-200">{title}</div>
-        <div className="text-xs text-zinc-500">{on ? detail : "Off"}</div>
+        <div className="text-xs text-zinc-400">{on ? detail : "Off"}</div>
+        {children}
       </div>
     </div>
   );
@@ -406,11 +412,18 @@ function CampaignList({ campaigns, onOpen }: { campaigns: Campaign[]; onOpen: (i
         {campaigns.map((c) => (
           <li key={c.id} className="group flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
             <button onClick={() => onOpen(c.id)} className="flex-1 min-w-0 text-left">
-              <div className="text-sm text-white truncate">{c.subject || "Untitled email"}</div>
-              <div className="text-xs text-zinc-500">
-                {c.kind !== "campaign" ? `${c.kind} update · ` : ""}
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm text-white truncate">{c.subject || "Untitled email"}</span>
+                {c.auto && (
+                  <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] text-sky-300" title="Sent by your automatic updates schedule">
+                    <CalendarCheck size={11} /> Automatic
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-zinc-400">
+                {c.kind !== "campaign" ? `${c.auto ? "Scheduled " : ""}${c.kind === "daily" ? "daily digest" : "weekly update"} · ` : ""}
                 {c.status === "sent"
-                  ? `Sent ${new Date(toMs(c.sentAt)).toLocaleDateString()} to ${c.recipients ?? 0}`
+                  ? `Sent ${new Date(toMs(c.sentAt)).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} to ${c.recipients ?? 0} subscriber${c.recipients === 1 ? "" : "s"}`
                   : c.error
                   ? <span className="text-red-300/80">{c.error}</span>
                   : `Edited ${toMs(c.updatedAt) ? new Date(toMs(c.updatedAt)).toLocaleDateString() : "just now"}`}

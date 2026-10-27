@@ -1,6 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { buildDigest } from "@/lib/email/digest";
 import { aiAllowed } from "@/lib/ai/budget";
+import { digestSince, runKey } from "@/lib/email/schedule";
 import { adminDb, appUrl, loadSettings, ownerEmail, sendToSubscribers, studioName } from "@/lib/email/server";
 import { logEvent, pruneEvents } from "@/lib/security/server";
 
@@ -46,10 +47,19 @@ export async function GET(req: Request) {
   for (const job of jobs) {
     try {
       const [settings, name] = await Promise.all([loadSettings(job.scopeId), studioName(job.scopeId)]);
+      const stamp = job.kind === "weekly" ? { lastWeeklyAt: FieldValue.serverTimestamp() } : { lastDailyAt: FieldValue.serverTimestamp() };
+
+      // The owner cancelled this send from the Upcoming card: drop what it would have covered.
+      if (settings.skip?.[job.kind] === runKey(Date.now())) {
+        await db.collection("email_settings").doc(job.scopeId).update({ ...stamp, [`skip.${job.kind}`]: FieldValue.delete() });
+        results.push({ ...job, skipped: "cancelled by owner" });
+        continue;
+      }
+
       // The AI intro only runs for workspaces owned by an account allowed to use AI.
       const aiIntro = settings.aiIntro && aiAllowed(await ownerEmail(job.scopeId));
-      const digest = await buildDigest(job.scopeId, job.kind, base, { studioName: name, aiIntro });
-      const stamp = job.kind === "weekly" ? { lastWeeklyAt: FieldValue.serverTimestamp() } : { lastDailyAt: FieldValue.serverTimestamp() };
+      const last = ms(job.kind === "weekly" ? settings.lastWeeklyAt : settings.lastDailyAt);
+      const digest = await buildDigest(job.scopeId, job.kind, base, { studioName: name, aiIntro, since: digestSince(job.kind, last) });
 
       if (digest.empty) {
         await db.collection("email_settings").doc(job.scopeId).update(stamp);
@@ -60,15 +70,18 @@ export async function GET(req: Request) {
       const { sent } = await sendToSubscribers({ scopeId: job.scopeId, ...digest, theme: settings.theme, audience: job.kind, base });
       // Record it in the studio's campaign history. Personal scopes have no family doc.
       const isFamily = (await db.collection("families").doc(job.scopeId).get()).exists;
-      await Promise.all([
+      // The email is already out, so these two writes must not fail each other.
+      const [, record] = await Promise.allSettled([
         db.collection("email_settings").doc(job.scopeId).update(stamp),
         db.collection("campaigns").add({
           subject: digest.subject,
           preheader: digest.preheader,
-          blocks: digest.blocks,
+          // JSON round-trip drops undefined values, which Firestore rejects.
+          blocks: JSON.parse(JSON.stringify(digest.blocks)),
           theme: settings.theme,
           audience: job.kind,
           kind: job.kind,
+          auto: true,
           status: "sent",
           recipients: sent,
           familyId: isFamily ? job.scopeId : null,
@@ -77,6 +90,7 @@ export async function GET(req: Request) {
           sentAt: FieldValue.serverTimestamp(),
         }),
       ]);
+      if (record.status === "rejected") console.error(`[email] ${job.kind} digest for ${job.scopeId} sent to ${sent} but not recorded:`, record.reason);
       results.push({ ...job, sent });
     } catch (err) {
       results.push({ ...job, error: err instanceof Error ? err.message : "failed" });

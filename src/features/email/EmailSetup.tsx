@@ -25,7 +25,8 @@ export function EmailSettingsForm({ scopeId, settings, defaults, onSaved }: {
     setSaving(true);
     try {
       await Promise.all([
-        setDoc(doc(db, "email_settings", scopeId), s, { merge: true }),
+        // Schedule state belongs to the cron and the Upcoming card; an older copy here would undo it.
+        setDoc(doc(db, "email_settings", scopeId), (({ lastDailyAt, lastWeeklyAt, skip, ...rest }) => rest)(s), { merge: true }),
         // The public sign-up page can read public_configs (email_settings is private).
         setDoc(doc(db, "public_configs", scopeId), { emailStudioName: s.fromName.trim() }, { merge: true }),
       ]);
