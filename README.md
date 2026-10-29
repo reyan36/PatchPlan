@@ -4,7 +4,7 @@
 
 # PatchPlan
 
-**The production hub for indie game studios: plan the game, hear your players, ship the patch.**
+**A project manager built for gamedevs & indie studios.**
 
 [Live app](https://patchplan.net) · [Changelog](https://patchplan.net/changelog) · [Status](https://patchplan.net/status) · [Docs](docs)
 
@@ -120,7 +120,7 @@ scripts/           Changelog sync and one-off data migrations
 
 ## Documentation
 
-[AI](docs/AI.md) · [Email](docs/EMAIL.md) · [Security](docs/SECURITY.md) · [Performance](docs/PERFORMANCE.md) · [Beta](docs/BETA.md) · [Maintenance](docs/MAINTENANCE.md)
+[AI](docs/AI.md) · [Email](docs/EMAIL.md) · [Security](docs/SECURITY.md) · [Performance](docs/PERFORMANCE.md) · [Beta](docs/BETA.md) · [Maintenance](docs/MAINTENANCE.md) · [Friction log](docs/FRICTION_LOG.md)
 
 ## Security
 
