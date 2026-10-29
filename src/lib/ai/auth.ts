@@ -12,18 +12,29 @@ const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 40;
 /** Player Signal web collects (3 Tavily searches each) per account per day. Override with TAVILY_ACCOUNT_DAILY_LIMIT. */
 const WEB_DAILY_LIMIT = Number(process.env.TAVILY_ACCOUNT_DAILY_LIMIT) || 5;
 
+/** Judges' accounts (AI_JUDGE_EMAILS, comma-separated) get higher daily limits so they never run out while testing. */
+const JUDGE_EMAILS = (process.env.AI_JUDGE_EMAILS || "judges@patchplan.net").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+const JUDGE_DAILY_LIMIT = Number(process.env.AI_JUDGE_DAILY_LIMIT) || 150;
+const JUDGE_WEB_DAILY_LIMIT = Number(process.env.TAVILY_JUDGE_DAILY_LIMIT) || 10;
+
+/** This account's daily AI requests and web collects. */
+function limitsFor(email: string) {
+  return JUDGE_EMAILS.includes(email.toLowerCase()) ? { ai: JUDGE_DAILY_LIMIT, web: JUDGE_WEB_DAILY_LIMIT } : { ai: DAILY_LIMIT, web: WEB_DAILY_LIMIT };
+}
+
 /** Verifies the caller and checks the account is on the AI allowlist (budget.ts). */
-export async function requireUser(req: Request): Promise<string> {
+export async function requireUser(req: Request): Promise<{ uid: string; email: string }> {
   const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) throw new AIError("Sign in to use PatchPlan AI.", 401);
   const decoded = await checkIdToken(req, token);
   if (!decoded) throw new AIError("Your session expired. Sign in again.", 401);
   if (!aiAllowed(decoded.email)) throw new AIError(AI_PRIVATE_MESSAGE, 403);
-  return decoded.uid;
+  return { uid: decoded.uid, email: decoded.email || "" };
 }
 
 /** Counts one AI call for today in `ai_usage/{uid}` (server-only collection). */
-async function useQuota(req: Request, uid: string) {
+async function useQuota(req: Request, uid: string, email: string) {
+  const DAILY_LIMIT = limitsFor(email).ai;
   const day = new Date().toISOString().slice(0, 10);
   const ref = adminDb().collection("ai_usage").doc(uid);
   const count = await adminDb().runTransaction(async (tx) => {
@@ -42,8 +53,9 @@ async function useQuota(req: Request, uid: string) {
   }
 }
 
-/** Counts one web collect for this account today; refuses past WEB_DAILY_LIMIT. */
-export async function chargeWebSearch(uid: string) {
+/** Counts one web collect for this account today; refuses past its daily limit. */
+export async function chargeWebSearch(uid: string, email: string) {
+  const WEB_DAILY_LIMIT = limitsFor(email).web;
   const day = new Date().toISOString().slice(0, 10);
   const ref = adminDb().collection("ai_usage").doc(uid);
   const ok = await adminDb().runTransaction(async (tx) => {
@@ -57,15 +69,15 @@ export async function chargeWebSearch(uid: string) {
 }
 
 /** Wraps a route handler with auth, limits and consistent JSON errors. */
-export function aiRoute<T>(handler: (body: T, uid: string) => Promise<unknown>) {
+export function aiRoute<T>(handler: (body: T, uid: string, email: string) => Promise<unknown>) {
   return async (req: Request) => {
     try {
       enforceLimit(req, `ai-ip:${clientIp(req)}`, 30, 60_000);
-      const uid = await requireUser(req);
+      const { uid, email } = await requireUser(req);
       enforceLimit(req, `ai:${uid}`, 20, 60_000, uid);
-      await useQuota(req, uid);
+      await useQuota(req, uid, email);
       const body = (await req.json().catch(() => ({}))) as T;
-      return NextResponse.json(await handler(body, uid));
+      return NextResponse.json(await handler(body, uid, email));
     } catch (err) {
       const status = err instanceof AIError || err instanceof EmailError ? err.status : 500;
       const message = err instanceof Error ? err.message : "AI request failed.";

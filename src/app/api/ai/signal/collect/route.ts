@@ -15,12 +15,12 @@ type Body = {
   manual?: string;
 };
 
-export const POST = aiRoute<Body>(async (body, uid) => {
+export const POST = aiRoute<Body>(async (body, uid, email) => {
   const errors: string[] = [];
   const appId = steamAppId(body.steamApp);
   // Web search is the expensive source: a per-account daily limit on top of the shared budget.
   const searchWeb = !!body.gameName?.trim() && !!process.env.TAVILY_API_KEY;
-  if (searchWeb) await chargeWebSearch(uid);
+  if (searchWeb) await chargeWebSearch(uid, email);
   const settle = async <T,>(label: string, p: Promise<T>, empty: T) => {
     try {
       return await p;
