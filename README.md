@@ -128,4 +128,4 @@ Please don't open a public issue for security problems. Email **privacy@patchpla
 
 ## License
 
-© 2026 PatchPlan. All rights reserved.
+Licensed under the [MIT License](LICENSE). The PatchPlan name and logo are not covered by this license.
